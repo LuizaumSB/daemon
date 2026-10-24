@@ -1,0 +1,25 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved.orig
+
+# App montado pelo scripts/build-app.sh
+build/
+
+# Xcode (se um dia abrir o pacote no Xcode)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Imagens de trabalho soltas na raiz (artes originais, fora do repositório)
+/*.png
+
+# Instruções pessoais para o Claude Code (não sobem para o GitHub)
+CLAUDE.local.md
+
+# Instruções para o Claude Code (ficam só na máquina de quem desenvolve)
+CLAUDE.md
