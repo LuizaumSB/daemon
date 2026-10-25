@@ -2,7 +2,8 @@ import Combine
 import Foundation
 import DaemonCore
 
-/// As abas do painel: um `BotModel` por agente, qual está aberta e quais têm resposta nova.
+/// Todas as abas (sessões), em qualquer janela: um `BotModel` por agente, qual está com o
+/// foco e quais têm resposta nova. Onde cada aba aparece é com o `Workspace`.
 @MainActor
 public final class AgentsModel: ObservableObject {
     /// O que a interface pede ao app para criar e remover abas. A interface não sabe
@@ -11,15 +12,19 @@ public final class AgentsModel: ObservableObject {
         public var recentConversations: () async -> [ConversationSummary]
         public var create: (NewAgentRequest) -> BotModel
         public var remove: (BotModel) -> Void
+        /// Salva o novo nome (a aba já foi renomeada na interface).
+        public var rename: (BotModel) -> Void
 
         public init(
             recentConversations: @escaping () async -> [ConversationSummary],
             create: @escaping (NewAgentRequest) -> BotModel,
-            remove: @escaping (BotModel) -> Void
+            remove: @escaping (BotModel) -> Void,
+            rename: @escaping (BotModel) -> Void
         ) {
             self.recentConversations = recentConversations
             self.create = create
             self.remove = remove
+            self.rename = rename
         }
     }
 
@@ -56,13 +61,24 @@ public final class AgentsModel: ObservableObject {
         unread.remove(id)
     }
 
-    /// Cria a aba pelo app e já deixa ela aberta.
-    func create(_ request: NewAgentRequest) {
-        guard let actions else { return }
+    /// Cria a aba pelo app e já deixa ela selecionada.
+    @discardableResult
+    func create(_ request: NewAgentRequest) -> BotModel? {
+        guard let actions else { return nil }
         let tab = actions.create(request)
         tabs.append(tab)
         observe(tab)
         select(tab.id)
+        return tab
+    }
+
+    func tab(_ id: String) -> BotModel? { tabs.first { $0.id == id } }
+
+    func rename(_ id: String, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, let tab = tab(id) else { return }
+        tab.rename(to: name)
+        actions?.rename(tab)
     }
 
     /// Remove a aba (menos a primeira, a do Daemon). Se era a aberta, volta para o Daemon.

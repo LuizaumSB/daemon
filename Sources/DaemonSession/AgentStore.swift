@@ -44,6 +44,11 @@ public enum AgentStore {
         AppSupport.saveLastSession(nil, key: agent.id)
     }
 
+    /// Salva a lista com o nome novo de uma aba.
+    public static func rename(_ agent: Agent, in existing: [Agent]) {
+        save(existing.map { $0.id == agent.id ? agent : $0 })
+    }
+
     private static func save(_ agents: [Agent]) {
         // A principal só vai para o arquivo se foi personalizada.
         let tabs = agents.filter { $0.id != Agent.daemon.id || $0 != .daemon }

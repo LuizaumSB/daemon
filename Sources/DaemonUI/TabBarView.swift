@@ -1,26 +1,38 @@
 import SwiftUI
 import DaemonCore
 
-/// Faixa de abas no topo do painel, ao lado do botão de fechar, com o "+" no fim.
+/// Faixa de abas de um pedaço, com o "+" no fim. Cada pedaço da janela tem a sua.
 struct TabBarView: View {
+    @ObservedObject var pane: Pane
     @ObservedObject var agents: AgentsModel
+    let canClose: (String) -> Bool
     let onSelect: (String) -> Void
     let onAdd: () -> Void
     let onClose: (String) -> Void
+    let onOpenInNewWindow: (String) -> Void
+    let onRename: (String) -> Void
+    /// Arrastar a aba: quem faz o arraste de verdade é o AppKit (`PaneView`).
+    let onDragStart: (String) -> Void
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(Array(agents.tabs.enumerated()), id: \.element.id) { index, tab in
-                TabButton(
-                    bot: tab,
-                    shortcut: index + 1,
-                    selected: tab.id == agents.selectedID,
-                    unread: agents.unread.contains(tab.id)
-                ) { onSelect(tab.id) }
-                .contextMenu {
-                    // A primeira aba é a principal (Daemon): não sai.
-                    if index > 0 {
-                        Button("Fechar aba") { onClose(tab.id) }
+            ForEach(pane.tabIDs, id: \.self) { id in
+                if let tab = agents.tab(id) {
+                    TabButton(
+                        bot: tab,
+                        shortcut: (agents.tabs.firstIndex { $0.id == id } ?? 99) + 1,
+                        selected: id == pane.selectedID,
+                        unread: agents.unread.contains(id)
+                    ) { onSelect(id) }
+                    // Junto com o clique: se o mouse andar com o botão apertado, é arraste.
+                    .simultaneousGesture(DragGesture(minimumDistance: 6).onChanged { _ in onDragStart(id) })
+                    .contextMenu {
+                        Button("Renomear aba…") { onRename(id) }
+                        Button("Abrir em nova janela") { onOpenInNewWindow(id) }
+                        // A primeira aba é a principal (Daemon): não sai.
+                        if canClose(id) {
+                            Button("Fechar aba") { onClose(id) }
+                        }
                     }
                 }
             }

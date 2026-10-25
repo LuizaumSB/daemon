@@ -48,7 +48,7 @@ public final class TerminalSession: NSObject, SessionController {
         hooks = HookBridge(key: key)
         // Já nasce do tamanho do terminal completo (920x580 menos as margens do painel),
         // para o CLI não ter que redesenhar tudo quando o painel abre pela primeira vez.
-        terminal = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 908, height: 544))
+        terminal = DaemonTerminalView(frame: NSRect(x: 0, y: 0, width: 908, height: 544))
         super.init()
         terminal.processDelegate = self
         applyAppearance()

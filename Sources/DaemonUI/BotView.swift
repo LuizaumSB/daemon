@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import DaemonCore
 
 /// O texto sendo digitado no bot.
@@ -8,6 +9,8 @@ import DaemonCore
 /// Command Line Tools.
 final class DraftState: ObservableObject {
     @Published var text = ""
+    /// Um arquivo está sendo arrastado por cima do bot.
+    @Published var dropTargeted = false
 }
 
 /// O bot compacto: conversa curta com cara de terminal e um campo para digitar.
@@ -26,6 +29,29 @@ struct BotView: View {
             input
         }
         .background(Color(white: 0.08))
+        // Arquivos soltos aqui viram caminhos no campo de texto, para completar a mensagem.
+        .onDrop(of: [.fileURL], isTargeted: $draft.dropTargeted, perform: dropFiles)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.accentColor.opacity(draft.dropTargeted ? 0.8 : 0), lineWidth: 2)
+                .padding(4)
+                .allowsHitTesting(false)
+        )
+    }
+
+    /// Lê os arquivos soltos (cada um chega em segundo plano) e acrescenta os caminhos.
+    private func dropFiles(_ providers: [NSItemProvider]) -> Bool {
+        for provider in providers {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url, url.isFileURL else { return }
+                let path = FilePaths.escaped(url.path)
+                DispatchQueue.main.async {
+                    let separator = draft.text.isEmpty || draft.text.hasSuffix(" ") ? "" : " "
+                    draft.text += separator + path + " "
+                }
+            }
+        }
+        return !providers.isEmpty
     }
 
     /// Linha de estado da aba. As abas e o botão do terminal ficam na faixa de cima do painel.

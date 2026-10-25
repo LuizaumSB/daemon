@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Uma sessão viva por aba, cada uma com o seu bot. As abas vêm do `agents.json`;
     // a primeira é sempre o Daemon.
     let agents = AgentsModel(tabs: AgentStore.load().map(AppDelegate.makeTab))
-    lazy var panel = PanelController(agents: agents)
+    lazy var panel = Workspace(agents: agents)
     private lazy var mascot = MascotWindow(agents: agents) { [weak self] in self?.panel.toggle() }
     private var hotKey: HotKey?
 
@@ -51,6 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             remove: { [unowned self] tab in
                 tab.session.stop()
                 AgentStore.remove(tab.agent, from: self.agents.tabs.map(\.agent))
+            },
+            rename: { [unowned self] tab in
+                AgentStore.rename(tab.agent, in: self.agents.tabs.map(\.agent))
             }
         )
         mascot.show()

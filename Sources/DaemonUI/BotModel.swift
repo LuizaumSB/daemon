@@ -10,13 +10,15 @@ public final class BotModel: ObservableObject, Identifiable {
     @Published public private(set) var messages: [ChatMessage] = []
     @Published public private(set) var activity: SessionActivity = .idle
     @Published public private(set) var state: SessionState = .stopped
-    public let agent: Agent
+    /// Muda quando a aba é renomeada (o `id` não muda nunca).
+    @Published public private(set) var agent: Agent
     public let session: SessionController
-    // `nonisolated`: o `id` não depende da thread principal (o `agent` nunca muda).
-    public nonisolated var id: String { agent.id }
+    // `nonisolated`: o `id` é fixo, então pode ser lido de qualquer thread.
+    public nonisolated let id: String
 
     public init(agent: Agent, session: SessionController) {
         self.agent = agent
+        self.id = agent.id
         self.session = session
         state = session.state
         activity = session.activity
@@ -24,6 +26,10 @@ public final class BotModel: ObservableObject, Identifiable {
         session.onActivityChange = { [weak self] in self?.activity = $0 }
         // A conversa vem da sessão (transcrição), então bot e terminal mostram o mesmo.
         session.onHistoryChange = { [weak self] in self?.messages = $0 }
+    }
+
+    func rename(to name: String) {
+        agent.displayName = name
     }
 
     func send(_ raw: String) {
