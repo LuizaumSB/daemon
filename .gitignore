@@ -23,3 +23,10 @@ CLAUDE.local.md
 
 # Instruções para o Claude Code (ficam só na máquina de quem desenvolve)
 CLAUDE.md
+
+# Mídia gerada (vídeos, GIFs, prints): fica só na máquina
+/media/
+
+# Artefatos do HyperFrames (prints de revisão, cache do render)
+video/.hyperframes/
+video/node_modules/

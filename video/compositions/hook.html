@@ -1,0 +1,55 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: #e3e4e8; overflow: hidden; font-family: "Inter", sans-serif; }
+    .h-title { position: absolute; left: 90px; right: 90px; top: 96px; font-weight: 900; font-size: 64px; letter-spacing: -0.02em; line-height: 1.05; color: #16171b; }
+    .h-title span { display: inline-block; }
+    #h-win { position: absolute; left: 90px; top: 250px; width: 900px; height: 600px; background: #141414; border-radius: 16px; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25); overflow: hidden; }
+    .h-bar { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 22px; background: #1e1e1e; }
+    .h-dot { width: 16px; height: 16px; border-radius: 50%; }
+    .h-bar-title { flex: 1; text-align: center; margin-right: 76px; color: #9a9a9a; font: 500 26px "JetBrains Mono", monospace; }
+    .h-term { padding: 36px 40px; font: 400 28px/1.7 "JetBrains Mono", monospace; color: #ebebeb; }
+    .h-dim { color: #8a8a8a; }
+    .h-spin { display: inline-block; color: #e8875b; }
+    #h-cursor { position: absolute; left: 0; top: 0; width: 64px; height: 64px; }
+  </style>
+  <div data-hf-id="hf-id83" id="root" data-composition-id="hook" data-width="1080" data-height="1080">
+    <div data-hf-id="hf-6qpr" id="h-t1" class="h-title"><span data-hf-id="hf-raiw">Sua</span> <span data-hf-id="hf-5ukb">IA</span> <span data-hf-id="hf-01xx">trabalhando</span></div>
+    <div data-hf-id="hf-y2tw" id="h-t2" class="h-title"><span data-hf-id="hf-0713">Fechou.</span> <span data-hf-id="hf-5l90">Parou</span> <span data-hf-id="hf-oh13">tudo.</span></div>
+    <div data-hf-id="hf-jdzm" id="h-win">
+      <div data-hf-id="hf-vow0" class="h-bar">
+        <div data-hf-id="hf-vb3e" class="h-dot" style="background: #ff5f57"></div>
+        <div data-hf-id="hf-bbkm" class="h-dot" style="background: #febc2e"></div>
+        <div data-hf-id="hf-09u0" class="h-dot" style="background: #28c840"></div>
+        <div data-hf-id="hf-aaix" class="h-bar-title">claude — ~</div>
+      </div>
+      <div data-hf-id="hf-m7if" class="h-term">
+        <div data-hf-id="hf-7jn3"><span data-hf-id="hf-yick" class="h-dim">&gt;</span> organiza minha semana</div>
+        <div data-hf-id="hf-yeow"><span data-hf-id="hf-tedg" id="h-spin" class="h-spin">✻</span> <span data-hf-id="hf-i5dy" class="h-dim">Trabalhando…</span></div>
+      </div>
+    </div>
+    <svg data-hf-id="hf-7bon" id="h-cursor" data-layout-allow-overflow viewBox="0 0 32 32">
+      <path data-hf-id="hf-311w" d="M6 3 L6 25 L11.5 20 L15 28.5 L18.6 27 L15.2 18.8 L22.5 18.8 Z" fill="#111" stroke="#fff" stroke-width="2" stroke-linejoin="round" />
+    </svg>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // Gancho: o título já está no quadro 0 (é a miniatura do post).
+    tl.fromTo("#h-t1", { opacity: 1 }, { opacity: 1, duration: 0.01 }, 0);
+    tl.fromTo("#h-t2", { opacity: 0 }, { opacity: 0, duration: 0.01 }, 0);
+    // O Claude trabalhando: o asterisco gira devagar (velocidade constante).
+    tl.fromTo("#h-spin", { rotation: 0 }, { rotation: 300, duration: 1.4, ease: "none" }, 0);
+    // Cursor grande entra pela direita e vai até o botão vermelho.
+    tl.fromTo("#h-cursor", { x: 1120, y: 1000, scale: 1 }, { x: 112, y: 268, duration: 0.6, ease: "power3.out" }, 0.55);
+    tl.to("#h-cursor", { scale: 0.82, duration: 0.07, ease: "power2.out", transformOrigin: "10% 10%" }, 1.2);
+    tl.to("#h-cursor", { scale: 1, duration: 0.1, ease: "power2.out" }, 1.27);
+    // O clique fecha a janela: ela encolhe para o botão e some.
+    tl.fromTo("#h-win", { scale: 1, opacity: 1 }, { scale: 0.04, opacity: 0, duration: 0.32, ease: "power3.in", transformOrigin: "28px 24px" }, 1.27);
+    tl.to("#h-cursor", { opacity: 0, duration: 0.2 }, 1.75);
+    // Troca de título: sai a frase de cima, entra a consequência palavra por palavra.
+    tl.to("#h-t1 span", { opacity: 0, filter: "blur(6px)", duration: 0.15, stagger: 0.03, ease: "power2.in" }, 1.3);
+    tl.set("#h-t2", { opacity: 1 }, 1.56);
+    tl.fromTo("#h-t2 span", { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.13, stagger: 0.07, ease: "power4.out" }, 1.56);
+    tl.to("#h-t2 span", { opacity: 0, filter: "blur(6px)", duration: 0.15, stagger: 0.02, ease: "power2.in" }, 2.8);
+    window.__timelines["hook"] = tl;
+  </script>
+</template>

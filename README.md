@@ -1,12 +1,20 @@
 <p align="center">
-  <img src="docs/daemon.gif" width="480" alt="Daemon: the AI session keeps running after you close it, with a floating mascot and terminal tabs">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Resources/Brand/logo-dark.svg">
+    <img src="Resources/Brand/logo-light.svg" width="420" alt="daemon">
+  </picture>
 </p>
 
-<h1 align="center">Daemon</h1>
+<p align="center"><b>Your personal AI agent, always alive.</b></p>
 
 <p align="center">
-  A native macOS app that keeps your AI coding CLIs (Claude Code by default) alive in the
-  background, in terminal tabs and split windows, with a floating mascot that shows what they are doing.
+  A native macOS app that keeps your AI CLIs (Claude Code by default) alive in the background,
+  in fixed terminal tabs and split windows, with a floating mascot that shows what they are doing.
+  Use it as an everyday personal agent, or as the home for your coding CLIs.
+</p>
+
+<p align="center">
+  <img src="docs/daemon.gif" width="480" alt="Daemon: close the terminal and the session keeps running; the mascot turns into the cursor that types daemon">
 </p>
 
 ## What it is
@@ -97,6 +105,24 @@ cross-platform stack. For now the focus is making this one solid.
   another terminal at the same time mixes up its transcript.
 - Code comments and the UI are in Portuguese (for now).
 - Built with [Claude Code](https://docs.claude.com/en/docs/claude-code) as a pair programmer.
+
+## Visual identity
+
+The mark is the cube from the floating mascot, drawn flat in three tones, with horns and the
+`> <` face. In the logo it takes the place of a terminal cursor: `daemon` is typed, and the
+cursor becomes the mascot. The wordmark is set in [JetBrains Mono](https://www.jetbrains.com/lp/mono/)
+Bold (OFL), outlined.
+
+| File | Use |
+|---|---|
+| [`logo-light.svg`](Resources/Brand/logo-light.svg) / [`logo-dark.svg`](Resources/Brand/logo-dark.svg) | Logo for light / dark backgrounds |
+| [`symbol-light.svg`](Resources/Brand/symbol-light.svg) / [`symbol-dark.svg`](Resources/Brand/symbol-dark.svg) | The cube alone |
+| [`wordmark-light.svg`](Resources/Brand/wordmark-light.svg) / [`wordmark-dark.svg`](Resources/Brand/wordmark-dark.svg) | The name alone |
+| [`icon-dark-mode.png`](Resources/Brand/icon-dark-mode.png) | App icon (made from the mascot by `scripts/make-icon.sh`) |
+| [`social-preview.png`](Resources/Brand/social-preview.png) | Link preview (1280×640) |
+
+Colours: ink `#16171B`, cube side `#5D5F66`, accent orange `#FF8A1F` (the "needs you" glow).
+The intro video lives in [`video/`](video) as a [HyperFrames](https://github.com/heygen-com/hyperframes) project.
 
 ## License
 

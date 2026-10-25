@@ -1,0 +1,166 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: #eeeef0; overflow: hidden; font-family: "Inter", sans-serif; color: #16171b;
+      --cube-front: #16171b; --cube-side: #5d5f66; --cube-top: #a7a9ae; --carve: #eeeef0; }
+    .d-title { position: absolute; left: 70px; right: 70px; text-align: center; font-weight: 900; font-size: 64px; letter-spacing: -0.02em; line-height: 1.05; }
+    .d-title span { display: inline-block; }
+    .d-head { position: absolute; left: 70px; right: 70px; top: 82px; font-weight: 900; font-size: 54px; letter-spacing: -0.02em; line-height: 1.05; }
+    .d-head span { display: inline-block; }
+    .d-accent { color: #ff8a1f; }
+    #d-mascot { position: absolute; left: 412px; top: 412px; width: 256px; height: 256px; z-index: 5; }
+    #d-mascot svg { width: 100%; height: 100%; overflow: visible; }
+    #d-win { position: absolute; left: 70px; top: 190px; width: 940px; height: 620px; background: #141414; border-radius: 16px; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25); overflow: hidden; z-index: 3; }
+    .d-bar { height: 72px; display: flex; align-items: center; padding: 0 22px; gap: 12px; background: #141414; border-bottom: 1px solid #262626; }
+    .d-light { width: 16px; height: 16px; border-radius: 50%; }
+    .d-tabs { display: flex; gap: 6px; margin-left: 26px; }
+    .d-tab { position: relative; display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 18px; border-radius: 10px; font: 400 25px "JetBrains Mono", monospace; color: #999; }
+    .d-tab .d-sel { position: absolute; inset: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.1); }
+    .d-tab b { position: relative; width: 14px; height: 14px; border-radius: 50%; background: #34c759; }
+    .d-tab i { position: relative; font-style: normal; }
+    .d-plus { font: 400 30px "JetBrains Mono", monospace; color: #999; padding: 0 10px; }
+    .d-pane { position: absolute; left: 0; right: 0; top: 73px; bottom: 0; padding: 36px 40px; font: 400 28px/1.75 "JetBrains Mono", monospace; color: #ebebeb; }
+    .d-dim { color: #8a8a8a; }
+    .d-ok { color: #4fd17a; }
+    .d-spin { display: inline-block; color: #e8875b; }
+    .d-block { display: inline-block; width: 15px; height: 32px; background: #ebebeb; vertical-align: -6px; }
+    #d-key { position: absolute; left: 50%; top: 70px; margin-left: -150px; width: 300px; height: 96px; border-radius: 22px; background: #fff; box-shadow: 0 6px 0 #c9cad0, 0 14px 30px rgba(0, 0, 0, 0.12); font: 700 44px "Inter", sans-serif; display: flex; align-items: center; justify-content: center; gap: 18px; z-index: 6; }
+    #d-cursor { position: absolute; left: 0; top: 0; width: 64px; height: 64px; z-index: 7; }
+    #d-type { position: absolute; left: 0; top: -20px; width: 1080px; height: 1080px; z-index: 4; overflow: visible; }
+    #d-claim { position: absolute; left: 70px; right: 70px; top: 578px; text-align: center; font-weight: 900; font-size: 46px; letter-spacing: -0.02em; }
+    #d-claim span { display: inline-block; }
+    #d-link { position: absolute; left: 70px; right: 70px; top: 652px; text-align: center; font: 500 29px "JetBrains Mono", monospace; color: #5d5f66; }
+  </style>
+  <div id="root" data-composition-id="daemon" data-width="1080" data-height="1080">
+    <div id="d-t1" class="d-title" style="top: 760px"><span>Com</span> <span>o</span> <span>Daemon,</span> <span>ela</span> <span>continua</span> <span>viva.</span></div>
+    <div id="d-h1" class="d-head"><span>A</span> <span>mesma</span> <span>conversa,</span> <span>de</span> <span>onde</span> <span>parou</span></div>
+    <div id="d-h2" class="d-head"><span>Uma</span> <span>sessão</span> <span>fixa</span> <span>para</span> <span>cada</span> <span>assunto</span></div>
+
+    <div id="d-win">
+      <div class="d-bar">
+        <div class="d-light" style="background: #ff5f57"></div>
+        <div class="d-light" style="background: #febc2e"></div>
+        <div class="d-light" style="background: #28c840"></div>
+        <div class="d-tabs">
+          <div id="d-tab1" class="d-tab"><span id="d-sel1" class="d-sel"></span><b id="d-dot1"></b><i>Daemon</i></div>
+          <div id="d-tab2" class="d-tab"><span id="d-sel2" class="d-sel"></span><b></b><i>Trabalho</i></div>
+          <div id="d-tab3" class="d-tab"><span id="d-sel3" class="d-sel"></span><b></b><i>Código</i></div>
+          <div class="d-plus">+</div>
+        </div>
+      </div>
+      <div id="d-p1" class="d-pane">
+        <div><span class="d-dim">&gt;</span> organiza minha semana</div>
+        <div style="position: relative">
+          <div id="d-work" style="position: absolute; left: 0; top: 0"><span id="d-spin" class="d-spin">✻</span> <span class="d-dim">Trabalhando…</span></div>
+          <div id="d-r1"><span class="d-ok">⏺</span> Agenda da semana pronta</div>
+        </div>
+        <div id="d-r2"><span class="d-ok">⏺</span> Lembretes criados</div>
+      </div>
+      <div id="d-p2" class="d-pane"><div><span class="d-dim">~/projeto $</span> codex</div><div><span class="d-block"></span></div></div>
+      <div id="d-p3" class="d-pane"><div><span class="d-dim">~/site $</span> opencode</div><div><span class="d-block"></span></div></div>
+    </div>
+
+    <div id="d-key"><span>⌥</span><span>Espaço</span></div>
+
+    <div id="d-mascot">
+      <svg viewBox="0 0 256 256">
+        <defs><clipPath id="d-msil"><path d="M30.69,82.66 A8.88,8.88 0 0 1 35.86,73.96 L73.06,56.96 A8.88,8.88 0 0 1 76.48,56.16 L206.96,52.22 A8.88,8.88 0 0 1 216.09,60.47 L225.31,192.36 A8.88,8.88 0 0 1 220.14,201.05 L182.94,218.05 A8.88,8.88 0 0 1 179.52,218.85 L49.04,222.80 A8.88,8.88 0 0 1 39.91,214.54 Z"/></clipPath><clipPath id="d-mhc"><polygon points="-200,64.5 456,44.7 456,-200 -200,-200"/></clipPath><mask id="d-mgap" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256"><rect width="256" height="256" fill="#fff"/><line x1="84.9" y1="202.8" x2="40.5" y2="223.1" stroke="#000" stroke-width="4.7" stroke-linecap="round"/><line x1="84.9" y1="202.8" x2="225.7" y2="198.5" stroke="#000" stroke-width="4.7" stroke-linecap="round"/><line x1="74.7" y1="56.2" x2="84.9" y2="202.8" stroke="#000" stroke-width="4.7" stroke-linecap="round"/></mask></defs><g clip-path="url(#d-mhc)"><polygon points="80.0,64.7 80.0,64.4 88.9,33.0 102.0,62.9 102.0,63.2 101.6,63.5 100.7,63.8 99.5,64.1 97.9,64.4 96.1,64.6 94.1,64.9 92.0,65.1 89.8,65.2 87.7,65.3 85.7,65.3 83.9,65.3 82.4,65.2 81.2,65.1 80.4,64.9" fill="var(--cube-front)" stroke="var(--cube-front)" stroke-width="2" stroke-linejoin="round"/><polygon points="144.8,65.1 144.8,64.8 153.7,33.4 166.9,63.3 166.9,63.6 166.4,63.9 165.6,64.2 164.3,64.5 162.8,64.8 161.0,65.0 159.0,65.3 156.8,65.5 154.6,65.6 152.5,65.7 150.5,65.7 148.7,65.7 147.2,65.6 146.0,65.5 145.2,65.3" fill="var(--cube-front)" stroke="var(--cube-front)" stroke-width="2" stroke-linejoin="round"/></g><g mask="url(#d-mgap)"><g clip-path="url(#d-msil)"><polygon points="84.9,202.8 225.7,198.5 181.3,218.8 40.5,223.1" fill="var(--cube-side)"/><polygon points="30.3,76.5 74.7,56.2 84.9,202.8 40.5,223.1" fill="var(--cube-side)"/><polygon points="74.7,56.2 215.5,52.0 225.7,198.5 84.9,202.8" fill="var(--cube-front)"/></g></g>
+        <path id="d-face" d="M99.88 93.63 L126.46 110.45 M126.46 110.45 L102.34 128.80 M195.63 90.74 L171.51 109.09 M171.51 109.09 L198.09 125.91 M130.35 166.14 Q152.88 165.46 175.41 164.77" fill="none" stroke="var(--carve)" stroke-width="18.28" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </div>
+
+    <svg id="d-type" viewBox="0 0 1080 1080" data-layout-allow-overflow>
+      <path id="d-L0" d="M212.95 513.5Q200.65 513.5 193.075 504.95Q185.5 496.4 185.5 482.0V459.65Q185.5 445.1 193.0 436.55Q200.5 428.0 212.95 428.0Q223.15 428.0 229.15 433.775Q235.15 439.55 235.15 449.6L230.95 445.25H235.3L234.7 425.6V402.5H253.45V512.0H235.15V496.25H230.95L235.15 491.9Q235.15 501.95 229.15 507.725Q223.15 513.5 212.95 513.5ZM219.55 497.3Q226.75 497.3 230.725 493.025Q234.7 488.75 234.7 481.1V460.4Q234.7 452.75 230.725 448.475Q226.75 444.2 219.55 444.2Q212.35 444.2 208.3 448.4Q204.25 452.6 204.25 460.4V481.1Q204.25 488.9 208.3 493.1Q212.35 497.3 219.55 497.3Z" fill="#16171b" />
+      <path id="d-L1" d="M300.85 513.5Q288.1 513.5 280.75 506.75Q273.4 500.0 273.4 488.6Q273.4 476.45 281.5 469.85Q289.6 463.25 304.45 463.25H325.0V456.2Q325.0 450.2 321.1 446.825Q317.2 443.45 310.45 443.45Q304.3 443.45 300.25 446.15Q296.2 448.85 295.45 453.5H277.15Q278.5 441.8 287.65 434.9Q296.8 428.0 311.05 428.0Q326.2 428.0 334.975 435.575Q343.75 443.15 343.75 456.05V512.0H325.6V497.6H322.6L325.6 493.55Q325.6 502.7 318.85 508.1Q312.1 513.5 300.85 513.5ZM307.0 499.4Q314.95 499.4 319.975 495.35Q325.0 491.3 325.0 484.85V474.8H304.75Q299.05 474.8 295.6 478.1Q292.15 481.4 292.15 486.8Q292.15 492.65 296.125 496.025Q300.1 499.4 307.0 499.4Z" fill="#16171b" />
+      <path id="d-L2" d="M400.15 513.5Q389.65 513.5 381.85 509.45Q374.05 505.4 369.775 498.125Q365.5 490.85 365.5 481.1V460.4Q365.5 450.65 369.775 443.375Q374.05 436.1 381.85 432.05Q389.65 428.0 400.15 428.0Q410.5 428.0 418.225 432.05Q425.95 436.1 430.225 443.375Q434.5 450.65 434.5 460.4V475.25H383.65V481.1Q383.65 489.8 387.85 494.225Q392.05 498.65 400.3 498.65Q406.6 498.65 410.5 496.475Q414.4 494.3 415.45 490.1H433.9Q431.8 500.75 422.57500000000005 507.125Q413.35 513.5 400.15 513.5ZM416.35 464.75V460.25Q416.35 451.7 412.3 447.125Q408.25 442.55 400.15 442.55Q392.05 442.55 387.85 447.20000000000005Q383.65 451.85 383.65 460.4V463.55L417.7 463.25Z" fill="#16171b" />
+      <path id="d-L3" d="M452.8 512.0V429.5H468.1V440.6H471.25L468.7 443.3Q468.7 436.4 472.6 432.2Q476.5 428.0 482.65 428.0Q489.25 428.0 492.925 433.4Q496.6 438.8 496.6 447.95L493.3 440.6H498.4L496.45 443.3Q496.45 436.4 500.35 432.2Q504.25 428.0 510.7 428.0Q518.35 428.0 522.85 433.7Q527.35 439.4 527.35 449.15V512.0H510.85V449.9Q510.85 445.85 509.05 443.525Q507.25 441.2 503.8 441.2Q500.5 441.2 498.625 443.45Q496.75 445.7 496.75 449.9V512.0H483.25V449.9Q483.25 445.7 481.45 443.45Q479.65 441.2 476.2 441.2Q472.75 441.2 471.025 443.45Q469.3 445.7 469.3 449.9V512.0Z" fill="#16171b" />
+      <path id="d-L4" d="M580.0 513.35Q569.5 513.35 561.775 509.375Q554.05 505.4 549.775 498.125Q545.5 490.85 545.5 480.95V460.55Q545.5 450.65 549.775 443.375Q554.05 436.1 561.775 432.125Q569.5 428.15 580.0 428.15Q590.65 428.15 598.3 432.125Q605.95 436.1 610.225 443.375Q614.5 450.65 614.5 460.4V480.95Q614.5 490.85 610.225 498.125Q605.95 505.4 598.3 509.375Q590.65 513.35 580.0 513.35ZM580.0 497.0Q587.5 497.0 591.625 492.875Q595.75 488.75 595.75 480.95V460.55Q595.75 452.6 591.625 448.55Q587.5 444.5 580.0 444.5Q572.65 444.5 568.45 448.55Q564.25 452.6 564.25 460.55V480.95Q564.25 488.75 568.45 492.875Q572.65 497.0 580.0 497.0Z" fill="#16171b" />
+      <path id="d-L5" d="M636.55 512.0V429.5H654.85V445.25H659.95L654.85 449.6Q654.85 439.4 660.7750000000001 433.7Q666.7 428.0 677.05 428.0Q689.2 428.0 696.475 436.1Q703.75 444.2 703.75 457.85V512.0H685.0V459.8Q685.0 452.3 681.1 448.25Q677.2 444.2 670.15 444.2Q663.25 444.2 659.275 448.4Q655.3 452.6 655.3 460.4V512.0Z" fill="#16171b" />
+      <rect id="d-blk" x="183.00" y="429.50" width="45.38" height="82.50" fill="#16171b" />
+    </svg>
+    <div id="d-claim"><span>Seu</span> <span>agente</span> <span>pessoal,</span> <span class="d-accent">sempre</span> <span class="d-accent">vivo</span></div>
+    <div id="d-link">Open source · github.com/LuizaumSB/daemon</div>
+
+    <svg id="d-cursor" data-layout-allow-overflow viewBox="0 0 32 32">
+      <path d="M6 3 L6 25 L11.5 20 L15 28.5 L18.6 27 L15.2 18.8 L22.5 18.8 Z" fill="#111" stroke="#fff" stroke-width="2" stroke-linejoin="round" />
+    </svg>
+  </div>
+  <script>
+    const F = {"idle": "M99.88 93.63 L126.46 110.45 M126.46 110.45 L102.34 128.80 M195.63 90.74 L171.51 109.09 M171.51 109.09 L198.09 125.91 M130.35 166.14 Q152.88 165.46 175.41 164.77", "blink": "M101.32 114.15 L113.99 113.77 M113.99 113.77 L126.66 113.38 M171.72 112.02 L184.39 111.64 M184.39 111.64 L197.06 111.25 M130.35 166.14 Q152.88 165.46 175.41 164.77", "thinkL": "M103.29 114.09 L107.79 113.95 M105.38 111.68 L105.70 116.37 M173.69 111.96 L178.19 111.82 M175.78 109.55 L176.10 114.24 M133.17 166.05 Q144.43 165.71 155.69 165.37", "thinkR": "M120.18 113.58 L124.69 113.44 M122.27 111.17 L122.60 115.86 M190.58 111.45 L195.09 111.31 M192.67 109.04 L193.00 113.73 M150.06 165.54 Q161.33 165.20 172.59 164.86", "think": "M111.74 113.84 L116.24 113.70 M113.82 111.42 L114.15 116.11 M182.14 111.71 L186.64 111.57 M184.23 109.29 L184.55 113.98 M141.61 165.80 Q152.88 165.46 164.14 165.12", "happy": "M101.73 120.01 L113.17 102.04 M113.17 102.04 L127.07 119.25 M172.13 117.88 L183.57 99.91 M183.57 99.91 L197.47 117.12 M129.73 157.35 Q154.11 183.04 174.79 155.98"};
+    const tl = gsap.timeline({ paused: true });
+    const face = (t, d, dur = 0.26) => tl.to("#d-face", { attr: { d: F[d] }, duration: dur, ease: "power2.inOut" }, t);
+    const wordsIn = (sel, t) => tl.fromTo(sel + " span", { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.13, stagger: 0.07, ease: "power4.out" }, t);
+    const wordsOut = (sel, t) => tl.to(sel + " span", { opacity: 0, filter: "blur(6px)", duration: 0.15, stagger: 0.02, ease: "power2.in" }, t);
+
+    // Estado inicial (tudo por fromTo / set no tempo 0, para buscar qualquer quadro).
+    gsap.set(["#d-t1 span", "#d-h1 span", "#d-h2 span", "#d-claim span"], { opacity: 0 });
+    gsap.set(["#d-win", "#d-key", "#d-cursor", "#d-link", "#d-blk", "#d-L0", "#d-L1", "#d-L2", "#d-L3", "#d-L4", "#d-L5", "#d-r1", "#d-r2", "#d-p2", "#d-p3", "#d-sel2", "#d-sel3"], { opacity: 0 });
+    tl.set("#d-face", { attr: { d: F.idle } }, 0);
+    tl.set("#d-dot1", { backgroundColor: "#34c759" }, 0);
+
+    // 1. Reveal: o cubo cai no centro (mola) e o título entra.
+    tl.fromTo("#d-mascot", { x: 0, y: -760, scale: 1.55 }, { x: 0, y: -120, scale: 1.55, duration: 0.6, ease: "back.out(1.6)" }, 0);
+    wordsIn("#d-t1", 0.35);
+    face(1.5, "blink", 0.06); face(1.6, "idle", 0.1);
+    wordsOut("#d-t1", 2.2);
+
+    // 2. ⌥Espaço: o cubo vai para o canto e a janela do Daemon sai dele, com a mesma conversa.
+    tl.fromTo("#d-key", { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.2, ease: "expo.out" }, 2.2);
+    tl.to("#d-key", { y: 6, duration: 0.06, ease: "power2.out" }, 2.38);
+    tl.to("#d-key", { y: 0, duration: 0.1, ease: "power2.out" }, 2.44);
+    tl.to("#d-key", { opacity: 0, scale: 0.9, duration: 0.18, ease: "power3.in" }, 2.75);
+    tl.to("#d-mascot", { x: 392, y: 392, scale: 0.55, duration: 0.55, ease: "power3.inOut" }, 2.38);
+    tl.fromTo("#d-win", { opacity: 0, scale: 0.06 }, { opacity: 1, scale: 1, duration: 0.55, ease: "expo.out", transformOrigin: "100% 100%" }, 2.5);
+    wordsIn("#d-h1", 2.9);
+    // Ainda trabalhando: o mascote pensa (bolinhas olhando), a bolinha da aba fica amarela.
+    tl.to("#d-dot1", { backgroundColor: "#ffcc00", duration: 0.15 }, 2.8);
+    tl.fromTo("#d-spin", { rotation: 0 }, { rotation: 380, duration: 1.8, ease: "none" }, 2.6);
+    face(2.85, "thinkL"); face(3.35, "thinkR"); face(3.85, "thinkL"); face(4.2, "think", 0.15);
+    // Terminou: as respostas aparecem, a aba volta a verde e o mascote sorri com um pulinho.
+    tl.to("#d-work", { opacity: 0, duration: 0.12 }, 4.38);
+    tl.fromTo("#d-r1", { opacity: 0, clipPath: "inset(0 100% 0 0)" }, { opacity: 1, clipPath: "inset(0 0% 0 0)", duration: 0.3, ease: "power2.out" }, 4.4);
+    tl.fromTo("#d-r2", { opacity: 0, clipPath: "inset(0 100% 0 0)" }, { opacity: 1, clipPath: "inset(0 0% 0 0)", duration: 0.3, ease: "power2.out" }, 4.55);
+    tl.to("#d-dot1", { backgroundColor: "#34c759", duration: 0.15 }, 4.45);
+    face(4.48, "happy");
+    tl.to("#d-mascot", { y: 360, duration: 0.16, ease: "power2.out" }, 4.5);
+    tl.to("#d-mascot", { y: 392, duration: 0.3, ease: "bounce.out" }, 4.66);
+    wordsOut("#d-h1", 5.05);
+
+    // 3. Abas: o cursor clica em "Código"; cada aba é uma sessão fixa e viva.
+    wordsIn("#d-h2", 5.36);
+    face(5.5, "idle");
+    tl.fromTo("#d-cursor", { opacity: 0, x: 1000, y: 1000, scale: 1 }, { opacity: 1, x: 612, y: 220, duration: 0.5, ease: "power3.out" }, 5.4);
+    tl.to("#d-cursor", { scale: 0.82, duration: 0.07, transformOrigin: "10% 10%" }, 5.95);
+    tl.to("#d-cursor", { scale: 1, duration: 0.1 }, 6.02);
+    tl.to("#d-sel1", { opacity: 0, duration: 0.1 }, 6.02);
+    tl.to("#d-sel3", { opacity: 1, duration: 0.1 }, 6.02);
+    tl.to("#d-p1", { opacity: 0, filter: "blur(8px)", duration: 0.15 }, 6.02);
+    tl.fromTo("#d-p2", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.15 }, 6.1);
+    tl.to("#d-cursor", { opacity: 0, duration: 0.2 }, 6.9);
+    wordsOut("#d-h2", 7.05);
+
+    // 4. A janela volta para dentro do mascote, e o mascote achata até virar o cursor do terminal.
+    tl.to("#d-win", { scale: 0.06, opacity: 0, duration: 0.4, ease: "power3.in", transformOrigin: "100% 100%" }, 7.15);
+    tl.to("#d-face", { opacity: 0, duration: 0.2 }, 7.45);
+    tl.to("#d-mascot", { x: -340.98, y: -88.91, scaleX: 0.3005, scaleY: 0.5471, duration: 0.5, ease: "power3.inOut" }, 7.45);
+    tl.set("#d-mascot", { opacity: 0 }, 7.95);
+    tl.set("#d-blk", { opacity: 1 }, 7.95);
+
+    // 5. O cursor pisca, digita "daemon" e pisca de novo.
+    for (let i = 0; i < 6; i++) {
+      tl.set("#d-L" + i, { opacity: 1 }, 8.6 + i * 0.075);
+      tl.set("#d-blk", { x: 90.0 * (i + 1) }, 8.6 + i * 0.075);
+    }
+    tl.set("#d-blk", { opacity: 0 }, 9.18); tl.set("#d-blk", { opacity: 1 }, 9.36);
+
+    // 6. O cursor cresce de volta para o mascote, sorrindo, no fim da palavra.
+    tl.set("#d-mascot", { x: 199.02, y: -88.91, scaleX: 0.3005, scaleY: 0.5471, opacity: 1 }, 9.5);
+    tl.set("#d-blk", { opacity: 0 }, 9.5);
+    tl.set("#d-face", { attr: { d: F.happy } }, 9.5);
+    tl.to("#d-mascot", { x: 280.93, y: -115.32, scaleX: 0.9, scaleY: 0.9, duration: 0.5, ease: "back.out(1.5)" }, 9.5);
+    tl.to("#d-face", { opacity: 1, duration: 0.18 }, 9.68);
+    wordsIn("#d-claim", 9.86);
+    tl.fromTo("#d-link", { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.18, ease: "power4.out" }, 9.9);
+    face(10.9, "blink", 0.06); face(11.0, "happy", 0.1);
+    window.__timelines["daemon"] = tl;
+  </script>
+</template>
