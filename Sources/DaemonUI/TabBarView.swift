@@ -19,7 +19,7 @@ struct TabBarView: View {
             ForEach(pane.tabIDs, id: \.self) { id in
                 if let tab = agents.tab(id) {
                     TabButton(
-                        bot: tab,
+                        tab: tab,
                         shortcut: (agents.tabs.firstIndex { $0.id == id } ?? 99) + 1,
                         selected: id == pane.selectedID,
                         unread: agents.unread.contains(id)
@@ -51,7 +51,7 @@ struct TabBarView: View {
 }
 
 private struct TabButton: View {
-    @ObservedObject var bot: BotModel
+    @ObservedObject var tab: TabModel
     let shortcut: Int
     let selected: Bool
     let unread: Bool
@@ -61,7 +61,7 @@ private struct TabButton: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Circle().fill(statusColor).frame(width: 7, height: 7)
-                Text(bot.agent.displayName)
+                Text(tab.agent.displayName)
                     .font(.system(size: 12, weight: selected ? .semibold : .regular, design: .monospaced))
                     .foregroundStyle(selected ? Color.white : Color(white: 0.6))
                     .lineLimit(1)
@@ -79,11 +79,11 @@ private struct TabButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(shortcut <= 9 ? "\(bot.agent.config.executable) (⌘\(shortcut))" : bot.agent.config.executable)
+        .help(shortcut <= 9 ? "\(tab.agent.config.executable) (⌘\(shortcut))" : tab.agent.config.executable)
     }
 
     private var statusColor: Color {
-        switch (bot.state, bot.activity) {
+        switch (tab.state, tab.activity) {
         case (.running, .idle): return .green
         case (.running, .thinking): return .yellow
         case (.running, .needsAttention): return .orange

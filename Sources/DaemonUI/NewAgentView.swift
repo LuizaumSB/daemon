@@ -3,7 +3,7 @@ import SwiftUI
 import DaemonCore
 
 /// O que está sendo preenchido no "+". Objeto em vez de `@State` pelo mesmo motivo do
-/// `DraftState` (no SDK do macOS 27, `@State` é uma macro que exige o Xcode).
+/// resto do app (no SDK do macOS 27, `@State` é uma macro que exige o Xcode).
 final class NewAgentForm: ObservableObject {
     enum CLI: String, CaseIterable, Identifiable {
         case claude = "Claude", codex = "Codex", opencode = "OpenCode", antigravity = "Antigravity", other = "Outro"

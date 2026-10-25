@@ -5,25 +5,21 @@ import DaemonCore
 public struct MenuBarContent: View {
     // Observa as abas para o menu acompanhar qual está aberta.
     @ObservedObject private var agents: AgentsModel
-    private let onShowBot: () -> Void
-    private let onShowTerminal: () -> Void
+    private let onShow: () -> Void
     private let onToggleMascot: () -> Void
 
     public init(
         agents: AgentsModel,
-        onShowBot: @escaping () -> Void,
-        onShowTerminal: @escaping () -> Void,
+        onShow: @escaping () -> Void,
         onToggleMascot: @escaping () -> Void
     ) {
         self.agents = agents
-        self.onShowBot = onShowBot
-        self.onShowTerminal = onShowTerminal
+        self.onShow = onShow
         self.onToggleMascot = onToggleMascot
     }
 
     public var body: some View {
-        Button("Abrir bot  (⌥Espaço)", action: onShowBot)
-        Button("Abrir terminal completo", action: onShowTerminal)
+        Button("Abrir Daemon  (⌥Espaço)", action: onShow)
         Button("Mostrar/esconder mascote", action: onToggleMascot)
         Divider()
         Text("Trocar de conversa: /resume no terminal")

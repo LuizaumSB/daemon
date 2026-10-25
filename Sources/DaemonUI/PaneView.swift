@@ -8,7 +8,7 @@ extension NSPasteboard.PasteboardType {
     static let daemonTab = NSPasteboard.PasteboardType("io.github.luizaumsb.daemon.tab")
 }
 
-/// Um pedaço na tela: a faixa de abas e o botão bot/terminal em cima, o conteúdo embaixo.
+/// Um pedaço na tela: a faixa de abas em cima e o terminal da aba selecionada embaixo.
 /// É daqui que sai o arraste de uma aba (API nativa do macOS, `NSDraggingSession`) e é
 /// aqui que uma aba arrastada pode ser solta: no meio (entra nas abas) ou numa borda
 /// (divide a janela).
@@ -20,7 +20,6 @@ final class PaneView: NSView, NSDraggingSource {
     private unowned let workspace: Workspace
 
     private let tabBar: NSView
-    private let modeButton = NSButton(image: PaneView.icon(for: .bot), target: nil, action: nil)
     private let contentArea = NSView()
     private let highlight = NSView()
     private var tabBarLeading: NSLayoutConstraint!
@@ -72,15 +71,6 @@ final class PaneView: NSView, NSDraggingSource {
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         addSubview(tabBar)
 
-        modeButton.isBordered = false
-        modeButton.translatesAutoresizingMaskIntoConstraints = false
-        modeButton.target = ActionTrampoline.shared
-        modeButton.action = #selector(ActionTrampoline.fire(_:))
-        ActionTrampoline.shared.actions[ObjectIdentifier(modeButton)] = { [weak self] in
-            guard let self, let window = self.workspaceWindow else { return }
-            workspace.toggleMode(of: pane, in: window)
-        }
-        addSubview(modeButton)
 
         contentArea.translatesAutoresizingMaskIntoConstraints = false
         addSubview(contentArea)
@@ -98,9 +88,7 @@ final class PaneView: NSView, NSDraggingSource {
         NSLayoutConstraint.activate([
             tabBarLeading,
             tabBar.centerYAnchor.constraint(equalTo: topAnchor, constant: Self.barHeight / 2),
-            tabBar.trailingAnchor.constraint(lessThanOrEqualTo: modeButton.leadingAnchor, constant: -8),
-            modeButton.centerYAnchor.constraint(equalTo: topAnchor, constant: Self.barHeight / 2),
-            modeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            tabBar.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -8),
             contentArea.topAnchor.constraint(equalTo: topAnchor, constant: Self.barHeight),
             contentArea.leadingAnchor.constraint(equalTo: leadingAnchor),
             contentArea.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -111,10 +99,8 @@ final class PaneView: NSView, NSDraggingSource {
 
     required init?(coder: NSCoder) { fatalError("não usado") }
 
-    /// Põe o bot ou o terminal da aba selecionada no pedaço.
-    func show(_ view: NSView, mode: PaneMode) {
-        modeButton.image = Self.icon(for: mode)
-        modeButton.toolTip = mode == .bot ? "Abrir terminal completo (⌘↩)" : "Voltar ao bot (⌘↩)"
+    /// Põe o terminal da aba selecionada no pedaço.
+    func show(_ view: NSView) {
         guard view !== shown || view.superview !== contentArea else { return }
         // Só tira a view anterior se ela ainda está aqui: a aba pode ter ido para outro
         // pedaço, e aí a view já está lá (tirar daqui apagaria ela de lá).
@@ -123,19 +109,14 @@ final class PaneView: NSView, NSDraggingSource {
         view.removeFromSuperview()
         view.translatesAutoresizingMaskIntoConstraints = false
         contentArea.addSubview(view)
-        // O terminal ganha uma margem; o bot vai até a borda.
-        let inset: CGFloat = mode == .terminal ? 6 : 0
+        // Uma margem em volta do terminal, para o texto não encostar na borda.
+        let inset: CGFloat = 6
         NSLayoutConstraint.activate([
             view.topAnchor.constraint(equalTo: contentArea.topAnchor),
             view.leadingAnchor.constraint(equalTo: contentArea.leadingAnchor, constant: inset),
             view.trailingAnchor.constraint(equalTo: contentArea.trailingAnchor, constant: -inset),
             view.bottomAnchor.constraint(equalTo: contentArea.bottomAnchor, constant: -inset),
         ])
-    }
-
-    private static func icon(for mode: PaneMode) -> NSImage {
-        let name = mode == .bot ? "rectangle.expand.vertical" : "rectangle.compress.vertical"
-        return NSImage(systemSymbolName: name, accessibilityDescription: mode == .bot ? "Abrir terminal" : "Voltar ao bot")!
     }
 
     // MARK: - Arrastar uma aba daqui

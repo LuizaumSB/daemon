@@ -2,22 +2,17 @@ import AppKit
 import SwiftUI
 import DaemonCore
 
-/// O que um pedaço mostra da aba selecionada: o chat compacto ou o terminal completo.
-public enum PaneMode { case bot, terminal }
-
 /// Um pedaço de janela: tem as próprias abas (como um grupo de editores do VS Code), uma
-/// delas selecionada, e mostra o bot ou o terminal dela.
+/// delas selecionada, e mostra o terminal dela.
 @MainActor
 final class Pane: ObservableObject {
     let id = UUID()
     @Published var tabIDs: [String]
     @Published var selectedID: String?
-    @Published var mode: PaneMode
 
-    init(tabIDs: [String], mode: PaneMode) {
+    init(tabIDs: [String]) {
         self.tabIDs = tabIDs
         self.selectedID = tabIDs.first
-        self.mode = mode
     }
 
     /// Tira a aba; se era a selecionada, seleciona a vizinha.
@@ -108,7 +103,7 @@ indirect enum Layout {
 final class WorkspaceWindow: NSObject, NSWindowDelegate {
     let window: FloatingPanel
     var layout: Layout
-    /// O pedaço com o foco: é nele que ⌘↩ e o "+" agem.
+    /// O pedaço com o foco (o último clicado).
     var focusedPane: Pane
     private unowned let workspace: Workspace
 
@@ -145,27 +140,21 @@ final class WorkspaceWindow: NSObject, NSWindowDelegate {
 /// uma janela, porque a view do terminal de uma sessão só pode estar num lugar por vez.
 @MainActor
 public final class Workspace {
-    public typealias Mode = PaneMode
-
     let agents: AgentsModel
     /// A primeira é a principal. Se ela ficar vazia, a seguinte vira a principal.
     private var windows: [WorkspaceWindow] = []
     private var paneViews: [UUID: PaneView] = [:]
-    /// Um bot por aba, criado na primeira vez que a aba aparece. Cada um tem o próprio
-    /// rascunho, então o texto digitado numa aba não some ao trocar de aba ou de janela.
-    private var botViews: [String: NSView] = [:]
     private var clickMonitor: Any?
 
-    static let botSize = NSSize(width: 440, height: 480)
-    static let terminalSize = NSSize(width: 920, height: 580)
+    static let windowSize = NSSize(width: 920, height: 580)
 
     /// Onde o mascote está agora. A janela principal abre no centro da tela em que ele está.
     public var anchorFrame: (() -> NSRect?)?
 
     public init(agents: AgentsModel) {
         self.agents = agents
-        let first = Pane(tabIDs: agents.tabs.map(\.id), mode: .bot)
-        windows = [WorkspaceWindow(layout: .pane(first), size: Self.botSize, workspace: self)]
+        let first = Pane(tabIDs: agents.tabs.map(\.id))
+        windows = [WorkspaceWindow(layout: .pane(first), size: Self.windowSize, workspace: self)]
         render(windows[0])
 
         agents.isViewing = { [weak self] id in
@@ -202,9 +191,8 @@ public final class Workspace {
         }
     }
 
-    /// Mostra a janela principal; com `mode`, muda o pedaço com o foco para bot ou terminal.
-    public func show(mode: Mode? = nil) {
-        if let mode { setMode(mode, of: main.focusedPane, in: main) }
+    /// Mostra a janela principal.
+    public func show() {
         present(main)
         focusContent(of: main.focusedPane, in: main)
     }
@@ -230,30 +218,9 @@ public final class Workspace {
 
     func select(_ tabID: String, in pane: Pane, of window: WorkspaceWindow) {
         pane.selectedID = tabID
-        // Abas de outros CLIs (Codex...) não têm bot: vão direto para o terminal.
-        if let tab = agents.tab(tabID), !tab.agent.usesClaude, pane.mode == .bot {
-            setMode(.terminal, of: pane, in: window)
-        } else {
-            refresh(pane)
-        }
+        refresh(pane)
         didFocus(pane, in: window)
         focusContent(of: pane, in: window)
-    }
-
-    func toggleMode(of pane: Pane, in window: WorkspaceWindow) {
-        setMode(pane.mode == .bot ? .terminal : .bot, of: pane, in: window)
-        focusContent(of: pane, in: window)
-    }
-
-    /// Com um pedaço só, a janela muda de tamanho junto (bot é estreito, terminal é largo).
-    /// Dividida, ela fica como o usuário deixou.
-    private func setMode(_ mode: Mode, of pane: Pane, in window: WorkspaceWindow) {
-        guard pane.mode != mode else { return }
-        pane.mode = mode
-        refresh(pane)
-        if window.panes.count == 1 {
-            place(window, size: mode == .bot ? Self.botSize : Self.terminalSize, centerOn: nil)
-        }
     }
 
     func didFocus(_ pane: Pane, in window: WorkspaceWindow) {
@@ -282,7 +249,7 @@ public final class Workspace {
             target.tabIDs.append(tabID)
             target.selectedID = tabID
         case .edge(let edge):
-            let pane = Pane(tabIDs: [tabID], mode: source.mode)
+            let pane = Pane(tabIDs: [tabID])
             targetWindow.layout = targetWindow.layout.inserting(pane, beside: target, at: edge)
             growIfNeeded(targetWindow, sideBySide: edge == .left || edge == .right)
         }
@@ -298,9 +265,8 @@ public final class Workspace {
         // A única aba da janela: arrastar para fora seria só mover a janela.
         if sourceWindow.panes.count == 1 && source.tabIDs.count == 1 { return }
         source.remove(tabID)
-        let mode = source.mode
-        let size = mode == .bot ? Self.botSize : Self.terminalSize
-        let window = WorkspaceWindow(layout: .pane(Pane(tabIDs: [tabID], mode: mode)), size: size, workspace: self)
+        let size = Self.windowSize
+        let window = WorkspaceWindow(layout: .pane(Pane(tabIDs: [tabID])), size: size, workspace: self)
         windows.append(window)
         removeIfEmpty(source, from: sourceWindow)
         if windows.contains(where: { $0 === sourceWindow }) { render(sourceWindow) }
@@ -389,7 +355,6 @@ public final class Workspace {
             guard response == .alertFirstButtonReturn, let self else { return }
             MainActor.assumeIsolated {
                 self.agents.remove(tabID)
-                self.botViews[tabID] = nil
                 pane.remove(tabID)
                 self.removeIfEmpty(pane, from: window)
                 if self.windows.contains(where: { $0 === window }) { self.render(window) }
@@ -426,15 +391,10 @@ public final class Workspace {
 
     // MARK: - Atalhos
 
-    /// ⌘1, ⌘2, ⌘3… levam à aba (em qualquer janela); ⌘↩ alterna bot/terminal no pedaço
-    /// com o foco.
+    /// ⌘1, ⌘2, ⌘3… levam à aba, em qualquer janela.
     func handleShortcut(_ event: NSEvent, in window: WorkspaceWindow) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard flags == .command else { return false }
-        if event.keyCode == 36 || event.keyCode == 76 {
-            toggleMode(of: window.focusedPane, in: window)
-            return true
-        }
         if let key = event.charactersIgnoringModifiers, let number = Int(key),
            number >= 1, number <= agents.tabs.count {
             focus(agents.tabs[number - 1].id)
@@ -491,42 +451,15 @@ public final class Workspace {
         return view
     }
 
-    /// Atualiza o que o pedaço mostra (a aba selecionada, no modo dele).
+    /// Põe no pedaço o terminal da aba selecionada.
     private func refresh(_ pane: Pane) {
         guard let id = pane.selectedID, let tab = agents.tab(id) else { return }
-        let content = pane.mode == .bot ? botView(for: tab) : tab.session.terminalView()
-        paneView(for: pane).show(content, mode: pane.mode)
-    }
-
-    private func botView(for tab: BotModel) -> NSView {
-        if let view = botViews[tab.id] { return view }
-        let view = NSHostingView(rootView: BotView(model: tab, draft: DraftState()))
-        botViews[tab.id] = view
-        return view
+        paneView(for: pane).show(tab.session.terminalView())
     }
 
     private func focusContent(of pane: Pane, in window: WorkspaceWindow) {
         guard let id = pane.selectedID, let tab = agents.tab(id) else { return }
-        switch pane.mode {
-        case .terminal:
-            window.window.makeFirstResponder(tab.session.terminalView())
-        case .bot:
-            // Sem `@FocusState` (macro que exige o Xcode): procura o campo de texto que o
-            // SwiftUI criou por baixo e dá o foco direto nele.
-            let view = botView(for: tab)
-            DispatchQueue.main.async {
-                guard let field = Self.firstTextField(in: view) else { return }
-                window.window.makeFirstResponder(field)
-            }
-        }
-    }
-
-    private static func firstTextField(in view: NSView) -> NSView? {
-        if view is NSTextField || view is NSTextView, view.acceptsFirstResponder { return view }
-        for sub in view.subviews {
-            if let found = firstTextField(in: sub) { return found }
-        }
-        return nil
+        window.window.makeFirstResponder(tab.session.terminalView())
     }
 
     // MARK: - Onde está cada coisa

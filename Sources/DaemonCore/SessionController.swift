@@ -9,7 +9,7 @@ public enum SessionState: Equatable, Sendable {
     case exited(code: Int32)
 }
 
-/// O que o CLI está fazendo agora. Alimenta o mascote e o balão do bot.
+/// O que o CLI está fazendo agora. Alimenta o mascote e as bolinhas das abas.
 public enum SessionActivity: Equatable, Sendable {
     /// Esperando uma mensagem nova.
     case idle
@@ -40,9 +40,6 @@ public protocol SessionController: AnyObject {
     /// Chamado sempre que `activity` muda.
     var onActivityChange: ((SessionActivity) -> Void)? { get set }
 
-    /// Chamado com as últimas mensagens da conversa sempre que ela muda, venha a mensagem
-    /// do bot ou do terminal. No `claude`, isso vem da transcrição, avisada pelos hooks.
-    var onHistoryChange: (([ChatMessage]) -> Void)? { get set }
 
     func start() throws
     func stop()

@@ -2,7 +2,7 @@ import Combine
 import Foundation
 import DaemonCore
 
-/// Todas as abas (sessões), em qualquer janela: um `BotModel` por agente, qual está com o
+/// Todas as abas (sessões), em qualquer janela: um `TabModel` por agente, qual está com o
 /// foco e quais têm resposta nova. Onde cada aba aparece é com o `Workspace`.
 @MainActor
 public final class AgentsModel: ObservableObject {
@@ -10,16 +10,16 @@ public final class AgentsModel: ObservableObject {
     /// salvar abas nem abrir sessões; quem sabe é o app, que preenche isto.
     public struct Actions {
         public var recentConversations: () async -> [ConversationSummary]
-        public var create: (NewAgentRequest) -> BotModel
-        public var remove: (BotModel) -> Void
+        public var create: (NewAgentRequest) -> TabModel
+        public var remove: (TabModel) -> Void
         /// Salva o novo nome (a aba já foi renomeada na interface).
-        public var rename: (BotModel) -> Void
+        public var rename: (TabModel) -> Void
 
         public init(
             recentConversations: @escaping () async -> [ConversationSummary],
-            create: @escaping (NewAgentRequest) -> BotModel,
-            remove: @escaping (BotModel) -> Void,
-            rename: @escaping (BotModel) -> Void
+            create: @escaping (NewAgentRequest) -> TabModel,
+            remove: @escaping (TabModel) -> Void,
+            rename: @escaping (TabModel) -> Void
         ) {
             self.recentConversations = recentConversations
             self.create = create
@@ -28,7 +28,7 @@ public final class AgentsModel: ObservableObject {
         }
     }
 
-    @Published public private(set) var tabs: [BotModel]
+    @Published public private(set) var tabs: [TabModel]
     @Published public private(set) var selectedID: String
     /// Abas que terminaram uma resposta enquanto o usuário não estava olhando para elas.
     @Published public private(set) var unread: Set<String> = []
@@ -37,17 +37,17 @@ public final class AgentsModel: ObservableObject {
     var isViewing: (String) -> Bool = { _ in false }
     private var observers: [String: [AnyCancellable]] = [:]
 
-    public init(tabs: [BotModel]) {
+    public init(tabs: [TabModel]) {
         precondition(!tabs.isEmpty, "precisa de pelo menos uma aba")
         self.tabs = tabs
         selectedID = tabs[0].id
         tabs.forEach(observe)
     }
 
-    public var selected: BotModel { tabs.first { $0.id == selectedID } ?? tabs[0] }
+    public var selected: TabModel { tabs.first { $0.id == selectedID } ?? tabs[0] }
 
     /// A primeira aba parada esperando o usuário (uma aprovação, por exemplo).
-    public var waiting: BotModel? {
+    public var waiting: TabModel? {
         tabs.first { if case .needsAttention = $0.activity { return true } else { return false } }
     }
 
@@ -63,7 +63,7 @@ public final class AgentsModel: ObservableObject {
 
     /// Cria a aba pelo app e já deixa ela selecionada.
     @discardableResult
-    func create(_ request: NewAgentRequest) -> BotModel? {
+    func create(_ request: NewAgentRequest) -> TabModel? {
         guard let actions else { return nil }
         let tab = actions.create(request)
         tabs.append(tab)
@@ -72,7 +72,7 @@ public final class AgentsModel: ObservableObject {
         return tab
     }
 
-    func tab(_ id: String) -> BotModel? { tabs.first { $0.id == id } }
+    func tab(_ id: String) -> TabModel? { tabs.first { $0.id == id } }
 
     func rename(_ id: String, to name: String) {
         let name = name.trimmingCharacters(in: .whitespaces)
@@ -91,7 +91,7 @@ public final class AgentsModel: ObservableObject {
         if selectedID == id { selectedID = tabs[0].id }
     }
 
-    private func observe(_ tab: BotModel) {
+    private func observe(_ tab: TabModel) {
         let id = tab.id
         observers[id] = [
             // O mascote observa só este modelo; qualquer mudança numa aba redesenha ele.

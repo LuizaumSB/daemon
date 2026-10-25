@@ -11,12 +11,11 @@ struct DaemonApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        // Ícone na menu bar: `>_` sem moldura.
+        // Ícone na menu bar: o cubo do mascote em versão chapada.
         MenuBarExtra {
             MenuBarContent(
                 agents: appDelegate.agents,
-                onShowBot: { appDelegate.panel.show(mode: .bot) },
-                onShowTerminal: { appDelegate.panel.show(mode: .terminal) },
+                onShow: { appDelegate.panel.show() },
                 onToggleMascot: { appDelegate.toggleMascot() }
             )
         } label: {
@@ -69,8 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Uma aba = o bot ligado a uma sessão nova daquele agente.
-    private static func makeTab(_ agent: Agent) -> BotModel {
-        BotModel(agent: agent, session: SessionFactory.make(agent: agent))
+    private static func makeTab(_ agent: Agent) -> TabModel {
+        TabModel(agent: agent, session: SessionFactory.make(agent: agent))
     }
 
     func toggleMascot() {

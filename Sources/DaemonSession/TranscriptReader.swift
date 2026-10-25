@@ -1,17 +1,9 @@
 import Foundation
 import DaemonCore
 
-/// Lê a transcrição do Claude Code (um arquivo JSONL, um objeto por linha) e monta a
-/// conversa que o bot mostra. É a mesma conversa do terminal, então os dois ficam iguais.
+/// Lê as transcrições do Claude Code (arquivos JSONL, um objeto por linha): a pasta onde
+/// cada conversa nasceu e o título dela, para retomar conversas.
 enum TranscriptReader {
-    /// Onde o Claude Code guarda a transcrição: uma pasta por diretório de trabalho
-    /// (com tudo que não é letra ou número trocado por "-") e um arquivo por sessão.
-    static func path(sessionID: String, workingDirectory: String) -> String {
-        let folder = String(workingDirectory.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/projects/\(folder)/\(sessionID).jsonl").path
-    }
-
     /// Pasta onde a conversa nasceu, lida da própria transcrição (o primeiro `cwd`).
     /// É nela que `--resume` precisa rodar; a pasta "atual" muda quando o Claude faz `cd`.
     static func originalWorkingDirectory(sessionID: String) -> String? {
@@ -78,80 +70,5 @@ enum TranscriptReader {
             if let title = entry["aiTitle"] as? String { generated = title }
         }
         return custom ?? generated
-    }
-
-    /// As últimas `limit` mensagens: o que foi digitado e a resposta de cada vez.
-    /// Lê só o fim do arquivo, porque transcrições longas passam de vários MB.
-    static func history(path: String, limit: Int = 30, tailBytes: Int = 1_500_000) -> [ChatMessage] {
-        guard let handle = FileHandle(forReadingAtPath: path) else { return [] }
-        defer { try? handle.close() }
-        let size = (try? handle.seekToEnd()) ?? 0
-        let start = size > UInt64(tailBytes) ? size - UInt64(tailBytes) : 0
-        try? handle.seek(toOffset: start)
-        guard let data = try? handle.readToEnd(), let content = String(data: data, encoding: .utf8) else { return [] }
-
-        var lines = content.split(separator: "\n")
-        // Começou no meio do arquivo: a primeira linha está cortada.
-        if start > 0, !lines.isEmpty { lines.removeFirst() }
-
-        var messages: [ChatMessage] = []
-        var replyParts: [String] = []
-        var replyID: String?
-
-        func flushReply() {
-            let text = replyParts.joined(separator: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            if !text.isEmpty { messages.append(ChatMessage(id: replyID ?? UUID().uuidString, author: .assistant, text: text)) }
-            replyParts.removeAll()
-            replyID = nil
-        }
-
-        for line in lines {
-            // Filtro barato antes de decodificar: só interessam mensagens.
-            guard line.contains("\"message\""),
-                  let entry = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
-                  entry["isSidechain"] as? Bool != true,
-                  let message = entry["message"] as? [String: Any]
-            else { continue }
-            let id = entry["uuid"] as? String ?? UUID().uuidString
-
-            switch entry["type"] as? String {
-            case "user":
-                guard entry["isMeta"] as? Bool != true, let text = typedText(message) else { continue }
-                flushReply()
-                messages.append(ChatMessage(id: id, author: .user, text: text))
-            case "assistant":
-                for block in message["content"] as? [[String: Any]] ?? [] where block["type"] as? String == "text" {
-                    if let text = block["text"] as? String { replyParts.append(text) }
-                }
-                if replyID == nil { replyID = id }
-            default:
-                break
-            }
-        }
-        flushReply()
-        return Array(messages.suffix(limit))
-    }
-
-    /// Texto digitado numa mensagem "user". Mensagens "user" também carregam resultados de
-    /// ferramentas e avisos internos (entre <tags>); esses ficam de fora, menos comandos
-    /// como /resume, que aparecem pelo nome.
-    private static func typedText(_ message: [String: Any]) -> String? {
-        let raw: String?
-        if let text = message["content"] as? String {
-            raw = text
-        } else {
-            let blocks = message["content"] as? [[String: Any]] ?? []
-            if blocks.contains(where: { $0["type"] as? String == "tool_result" }) { return nil }
-            raw = blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
-                .joined(separator: "\n")
-        }
-        guard let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
-        if text.hasPrefix("<") {
-            guard let range = text.range(of: "<command-name>"),
-                  let end = text.range(of: "</command-name>", range: range.upperBound..<text.endIndex)
-            else { return nil }
-            return String(text[range.upperBound..<end.lowerBound])
-        }
-        return text
     }
 }

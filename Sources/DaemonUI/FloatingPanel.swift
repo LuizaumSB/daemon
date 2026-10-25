@@ -29,7 +29,7 @@ final class FloatingPanel: NSPanel {
 
     /// ⌘C, ⌘V, ⌘X, ⌘A e ⌘Z. Num app normal quem entrega esses atalhos é o menu Editar;
     /// o Daemon vive só na menu bar e não tem esse menu, então o painel entrega direto
-    /// para quem estiver com o foco (o terminal ou o campo do bot).
+    /// para quem estiver com o foco (o terminal ou um campo de texto).
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         // Atalhos do próprio painel (trocar de aba, abrir o terminal) vêm antes de tudo,

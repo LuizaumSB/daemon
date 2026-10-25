@@ -19,7 +19,6 @@ public final class TerminalSession: NSObject, SessionController {
     public let config: CLIConfig
     public var onStateChange: ((SessionState) -> Void)?
     public var onActivityChange: ((SessionActivity) -> Void)?
-    public var onHistoryChange: (([ChatMessage]) -> Void)?
 
     /// Chave da aba: separa hooks, eventos e última conversa de cada sessão viva.
     private let key: String
@@ -30,11 +29,6 @@ public final class TerminalSession: NSObject, SessionController {
     private var inputFixes: TerminalInputFixes?
     private var startedAt = Date()
     private var resumedSession = false
-    /// Arquivo da conversa atual; vem dos hooks, que sabem quando o /resume troca a conversa.
-    private var transcriptPath: String?
-    private var history: [ChatMessage] = [] {
-        didSet { onHistoryChange?(history) }
-    }
 
     /// Os hooks e a retomada de sessão só existem no Claude Code.
     private var isClaude: Bool {
@@ -70,7 +64,6 @@ public final class TerminalSession: NSObject, SessionController {
                 // Reabre a última conversa usada, na pasta onde ela nasceu: continua de onde parou.
                 cliArgs += ["--resume", last.id]
                 directory = TranscriptReader.originalWorkingDirectory(sessionID: last.id) ?? last.workingDirectory
-                transcriptPath = TranscriptReader.path(sessionID: last.id, workingDirectory: last.workingDirectory)
                 resumedSession = true
             } else {
                 // Primeira vez: conversa nova com o nome da aba e a mensagem inicial, se houver.
@@ -78,11 +71,9 @@ public final class TerminalSession: NSObject, SessionController {
                 AppSupport.saveLastSession(.init(id: id, workingDirectory: directory), key: key)
                 cliArgs += ["--name", name, "--session-id", id]
                 if let prompt = config.initialPrompt { cliArgs.append(prompt) }
-                transcriptPath = TranscriptReader.path(sessionID: id, workingDirectory: directory)
                 resumedSession = false
             }
             hooks.startWatching()
-            reloadHistory()
         }
 
         // Apps abertos pelo Finder não herdam o PATH do terminal. Rodar dentro de um
@@ -168,17 +159,11 @@ public final class TerminalSession: NSObject, SessionController {
             // Início, ou troca de conversa com /resume: passa a seguir a conversa nova
             // e lembra dela para o próximo início do app.
             follow(payload)
-            reloadHistory()
         case .promptSubmitted(let payload):
             follow(payload)
             activity = .thinking
-            // Mostra a mensagem na hora; a transcrição confirma quando a resposta chegar.
-            if let prompt = payload["prompt"] as? String, !prompt.hasPrefix("<") {
-                history.append(ChatMessage(author: .user, text: prompt))
-            }
         case .stopped(let payload):
             follow(payload)
-            reloadHistory()
             activity = .idle
         case .notification(let message):
             activity = .needsAttention(message: message)
@@ -187,7 +172,6 @@ public final class TerminalSession: NSObject, SessionController {
 
     /// Atualiza a conversa atual com o que o hook informou.
     private func follow(_ payload: [String: Any]) {
-        if let path = payload["transcript_path"] as? String { transcriptPath = path }
         guard let id = payload["session_id"] as? String,
               id != AppSupport.loadLastSession(key: key)?.id
         else { return }
@@ -195,19 +179,6 @@ public final class TerminalSession: NSObject, SessionController {
         // `cwd` do hook: esse muda quando o Claude faz `cd` no meio da conversa.
         let cwd = TranscriptReader.originalWorkingDirectory(sessionID: id) ?? payload["cwd"] as? String
         if let cwd { AppSupport.saveLastSession(.init(id: id, workingDirectory: cwd), key: key) }
-    }
-
-    /// Relê as últimas mensagens da transcrição, fora da thread da interface.
-    private func reloadHistory() {
-        guard let path = transcriptPath else { return }
-        Task {
-            let messages = await Task.detached(priority: .userInitiated) {
-                TranscriptReader.history(path: path)
-            }.value
-            // Se a conversa mudou enquanto lia, esse resultado é de outra conversa.
-            guard path == self.transcriptPath else { return }
-            self.history = messages
-        }
     }
 
     private func applyAppearance() {
