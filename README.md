@@ -1,37 +1,44 @@
 <p align="center">
-  <img src="Resources/Brand/icon-dark-mode.png" width="160" alt="Daemon icon">
+  <img src="docs/daemon.gif" width="480" alt="Daemon: the AI session keeps running after you close it, with a floating mascot and terminal tabs">
 </p>
 
 <h1 align="center">Daemon</h1>
 
 <p align="center">
-  A native macOS app that keeps your AI coding CLI (Claude Code by default) always alive in
-  the background, with a floating mascot, a compact chat and the full terminal of the same session.
+  A native macOS app that keeps your AI coding CLIs (Claude Code by default) alive in the
+  background, in terminal tabs and split windows, with a floating mascot that shows what they are doing.
 </p>
 
-## Features
+## What it is
 
-- **Always-on sessions.** Each tab is a live CLI session running in a real terminal (PTY).
-  Close the window and it keeps working; reopen the app and it resumes the same conversation.
-- **Floating mascot.** A small 3D cube, drawn in code, that stays on top of everything and
-  shows what the session is doing: ready `> <`, thinking (eyes looking around), new reply
-  `^ ^`, needs you (orange glow and a hop), stopped `x x`.
-- **Compact chat or full terminal.** Talk to the session in a small chat ("bot") or open the
-  full terminal of the same session. Both always show the same conversation.
-- **Tabs.** Create tabs with the **+** button: Claude Code, Codex, OpenCode, Antigravity or any
-  other command. Start a new conversation in a folder or resume an existing Claude Code one.
-- **Keyboard first.** `⌥Space` toggles the panel from anywhere, `⌘1…⌘9` switch tabs, `⌘↩`
-  switches between chat and terminal.
-- **Light.** Native Swift. The app itself idles at ~0% CPU; most of the memory is the CLIs.
+Close a terminal and the AI session inside it dies. Daemon keeps it running: each tab is a real
+terminal with a live CLI session, always one shortcut away, even when no window is open.
 
-## Requirements
+- **Always-on sessions.** Each tab runs its CLI in a real terminal (PTY). Hide the window and it
+  keeps working; reopen the app and each tab resumes the same Claude Code conversation.
+- **One session per subject.** Create tabs with the **+** button: Claude Code, Codex, OpenCode,
+  Antigravity or any other command. Start a new conversation in a folder or resume an existing
+  Claude Code one.
+- **Split and detach.** Drag a tab to the edge of a pane to split the window, drag it to another
+  pane to move it, or drag it out to give it its own window.
+- **Floating mascot.** A small 3D cube, drawn in code, that stays on top of everything. It turns
+  to follow your pointer and shows the state of your sessions: ready `> <`, thinking (eyes
+  looking around), new reply `^ ^`, needs you (orange glow and a hop with the tab's initial),
+  stopped `x x`.
+- **Drop files.** Drag files from Finder into a terminal to paste their paths; Claude Code
+  attaches images this way.
+- **Light.** Native Swift and AppKit. The app itself idles at ~0% CPU; the memory goes to the CLIs.
 
-- macOS 13 or later (Apple Silicon).
-- [Claude Code](https://docs.claude.com/en/docs/claude-code) installed as `claude` (for the
-  chat view). Other CLIs (`codex`, `opencode`, `agy`…) work in terminal mode.
-- Swift toolchain: the Xcode **Command Line Tools** are enough (`xcode-select --install`).
+## Install
 
-## Build and run
+**Download:** grab `Daemon.zip` from [Releases](https://github.com/LuizaumSB/daemon/releases),
+unzip it and move `Daemon.app` to Applications.
+
+> Daemon is not notarized by Apple (it's a free, open-source side project). The first time, open
+> it with **right-click → Open**. If macOS still blocks it, go to **System Settings → Privacy &
+> Security** and click **Open Anyway**.
+
+**Build from source** (only the Xcode Command Line Tools are needed: `xcode-select --install`):
 
 ```bash
 git clone https://github.com/LuizaumSB/daemon.git
@@ -40,47 +47,56 @@ cd daemon
 open build/Daemon.app
 ```
 
-For development: `swift build` and `swift run Daemon`.
+Requirements: macOS 13 or later on Apple Silicon, and
+[Claude Code](https://docs.claude.com/en/docs/claude-code) installed as `claude`. Other CLIs
+(`codex`, `opencode`, `agy`…) work too; the mascot's status comes from Claude Code hooks.
 
-The build is signed ad hoc, so macOS asks for folder permissions again after each rebuild.
-To avoid that, create a local code-signing certificate named **Daemon Local Signing** in
-Keychain Access (Certificate Assistant ▸ Create a Certificate… ▸ Self-Signed Root ▸ Code
-Signing); `build-app.sh` uses it automatically.
+## Shortcuts
+
+| | |
+|---|---|
+| `⌥ Space` | Show or hide the window, from any app |
+| `⌘1` … `⌘9` | Jump to a tab, in any window |
+| Drag a tab | To a pane's edge: split. To another pane: move. Outside: new window |
+| Right-click a tab | Rename, open in a new window, close |
+| Click the mascot | Open the window (or the tab that needs you) |
 
 ## How it works
 
 - Each tab runs a login `zsh` in a PTY ([SwiftTerm](https://github.com/migueldeicaza/SwiftTerm))
-  with your own shell config, and starts the CLI inside it.
+  with your own shell config, and starts the CLI inside it. When the CLI exits, the shell stays.
 - For Claude Code, the app adds [hooks](https://docs.claude.com/en/docs/claude-code/hooks)
-  (`SessionStart`, `UserPromptSubmit`, `Stop`, `Notification`) via `--settings`. Each hook only
-  writes its JSON to a file; the app watches the folder. No server, no socket.
-- The chat view reads the conversation from Claude Code's own transcript
-  (`~/.claude/projects/…/<id>.jsonl`), so the chat and the terminal never disagree.
-- Settings live in `~/Library/Application Support/Daemon` (`agents.json` for tabs).
-- The code is split into four SwiftPM modules: `DaemonCore` (contracts), `DaemonSession`
-  (PTY, hooks, transcripts), `DaemonUI` (mascot, panel, tabs) and `Daemon` (the app).
+  (`SessionStart`, `UserPromptSubmit`, `Stop`, `Notification`) through `--settings`. Each hook
+  only writes its JSON to a file in a folder the app watches: no server, no socket.
+- To resume, the app reads Claude Code's own transcripts (`~/.claude/projects/…/<id>.jsonl`) to
+  find the folder each conversation started in and its title. The conversation itself lives in
+  one place only: Claude Code's transcript.
+- Windows are a tree of splits (`NSSplitView`); dragging a tab is a native AppKit drag session.
+- Settings live in `~/Library/Application Support/Daemon` (`agents.json` holds the tabs).
+- Four SwiftPM modules: `DaemonCore` (contracts), `DaemonSession` (PTY, hooks, transcripts),
+  `DaemonUI` (mascot, windows, tabs) and `Daemon` (the app).
 
-The mascot look (camera angles, horns, light) is in `MascotStyle` at the top of
-`Sources/DaemonUI/CubeMascot.swift`. After changing it, `./scripts/make-icon.sh` regenerates
-the app icon from the same drawing.
+The mascot's look (camera angles, horns, how much it turns) is in `MascotStyle` at the top of
+`Sources/DaemonUI/CubeMascot.swift`. After changing it, `./scripts/make-icon.sh` regenerates the
+app icon from the same drawing.
 
 ## Privacy
 
-Everything stays on your Mac. The app only reads local files: Claude Code transcripts (to show
-the chat and list conversations to resume) and its own settings. It makes no network requests;
-the CLIs you run do whatever they normally do.
+Everything stays on your Mac. The app only reads local files: Claude Code transcripts (to resume
+conversations) and its own settings. It makes no network requests; the CLIs you run do whatever
+they normally do.
+
+## Roadmap
+
+This is the macOS prototype. Windows and Linux versions are planned for later, in a
+cross-platform stack. For now the focus is making this one solid.
 
 ## Notes
 
 - Use one conversation in one place: opening the same Claude Code session in Daemon and in
   another terminal at the same time mixes up its transcript.
 - Code comments and the UI are in Portuguese (for now).
-
-## Roadmap
-
-Daemon is a **macOS prototype**. Versions for **Windows and Linux** are planned for the
-future, probably rewritten in another language/stack better suited to cross-platform desktop
-apps. For now, the focus is to keep improving this prototype on macOS.
+- Built with [Claude Code](https://docs.claude.com/en/docs/claude-code) as a pair programmer.
 
 ## License
 
@@ -90,10 +106,8 @@ apps. For now, the focus is to keep improving this prototype on macOS.
 
 ### Em português
 
-O Daemon é um app nativo de macOS que mantém o seu CLI de IA (o Claude Code, por padrão)
-sempre vivo em segundo plano, com um mascote flutuante, um chat compacto e o terminal completo
-da mesma sessão, em abas. Para compilar, só as Command Line Tools: `./scripts/build-app.sh`.
-
-Este é um **protótipo para macOS**. No futuro, a ideia é ter versões para **Windows e Linux**,
-provavelmente em outra linguagem, mais adequada a apps multiplataforma. Por enquanto, o foco é
-melhorar este protótipo.
+O Daemon é um app nativo de macOS que mantém os seus CLIs de IA (o Claude Code, por padrão)
+sempre vivos em segundo plano, em abas de terminal e janelas divididas, com um mascote flutuante
+que mostra o que cada sessão está fazendo. Baixe o `Daemon.zip` em
+[Releases](https://github.com/LuizaumSB/daemon/releases) (na primeira vez, botão direito → Abrir)
+ou compile com `./scripts/build-app.sh`, só com as Command Line Tools.
