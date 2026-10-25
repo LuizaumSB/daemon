@@ -4,7 +4,9 @@ import SwiftTerm
 /// Dois ajustes no terminal do SwiftTerm para o Claude Code funcionar como num terminal
 /// comum (iTerm, Terminal):
 /// - Shift+Enter pula linha em vez de enviar;
-/// - a rolagem do mouse/trackpad chega ao programa quando ele usa a tela alternativa.
+/// - a rolagem do mouse/trackpad chega ao programa quando ele usa a tela alternativa;
+/// - o clique que só dá o foco ao terminal não chega ao programa (no Claude Code, um clique
+///   abre o bloco que está embaixo dele).
 ///
 /// O SwiftTerm não deixa sobrescrever `keyDown`/`scrollWheel` de fora do pacote, então os
 /// eventos são interceptados antes de chegar ao terminal (monitor local de eventos do app).
@@ -14,10 +16,12 @@ final class TerminalInputFixes {
     private var monitor: Any?
     /// Trackpads mandam rolagem em pedacinhos; acumula até dar uma linha inteira.
     private var pendingScroll: CGFloat = 0
+    /// O "soltar" do clique de foco também não pode chegar ao programa.
+    private var swallowMouseUp = false
 
     init(terminalView: LocalProcessTerminalView) {
         self.terminalView = terminalView
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { [weak self] event in
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .scrollWheel, .leftMouseDown, .leftMouseUp]) { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self else { return event }
                 // `nil` = evento tratado aqui, não segue para o terminal.
@@ -38,6 +42,19 @@ final class TerminalInputFixes {
         case .scrollWheel:
             let point = view.convert(event.locationInWindow, from: nil)
             return view.bounds.contains(point) && handleScroll(event, in: view)
+        case .leftMouseDown:
+            // Como no Terminal e no Cursor: o primeiro clique num terminal sem foco só dá o
+            // foco. O SwiftTerm repassaria esse clique ao programa (o `mouseDown` dele não
+            // pode ser sobrescrito de fora do pacote, por isso o monitor).
+            let point = view.convert(event.locationInWindow, from: nil)
+            guard view.bounds.contains(point), window.firstResponder !== view else { return false }
+            window.makeFirstResponder(view)
+            swallowMouseUp = true
+            return true
+        case .leftMouseUp:
+            guard swallowMouseUp else { return false }
+            swallowMouseUp = false
+            return true
         default:
             return false
         }

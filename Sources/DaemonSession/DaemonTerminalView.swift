@@ -41,6 +41,15 @@ final class DaemonTerminalView: LocalProcessTerminalView {
         return true
     }
 
+    // MARK: - Cursor
+
+    /// O Claude Code esconde e mostra o cursor a cada quadro que desenha, e o SwiftTerm
+    /// aplicaria isso na hora, no meio do quadro: o cursor pisca pela tela. Ignorando estes
+    /// avisos, quem mostra ou esconde o cursor é o redesenho da tela (que já lê o estado do
+    /// cursor), então ele só muda quando o quadro está pronto.
+    override func showCursor(source: Terminal) {}
+    override func hideCursor(source: Terminal) {}
+
     private static func fileURLs(in info: NSDraggingInfo) -> [URL] {
         info.draggingPasteboard.readObjects(forClasses: [NSURL.self],
                                             options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
