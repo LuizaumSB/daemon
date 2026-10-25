@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// O cubo do Daemon desenhado em código: um cubo 3D de verdade (8 vértices girados e
-/// projetados na tela), com a cara mudando conforme o estado. Por ser vetor, fica nítido
-/// em qualquer tamanho. Tudo é calculado numa grade de 100×100 e depois escalado.
+/// projetados na tela), pintado chapado em três tons (frente, lateral e topo), com a cara
+/// mudando conforme o estado. Por ser vetor, fica nítido em qualquer tamanho. Tudo é
+/// calculado numa grade de 100×100 e depois escalado.
 /// Tudo que dá para ajustar no visual do mascote, num lugar só. Para mudar o jeito
 /// dele, mexa aqui; o resto do arquivo só usa estes valores.
 enum MascotStyle {
@@ -14,21 +15,30 @@ enum MascotStyle {
     /// Inclinação, como na logo: positivo levanta o lado direito.
     static let tilt: Double = 4
 
+    // Seguir o ponteiro do mouse (quando está pronto ou com resposta nova).
+    /// Giro máximo de lado (graus), igual para a esquerda e para a direita: com o ponteiro
+    /// bem à esquerda, o cubo fica virado −36°; bem à direita, +36°; perto, no `yaw` de repouso.
+    static let followTurn: Double = 36
+    /// Quanto o cubo inclina para cima/baixo do ponteiro, no máximo (graus).
+    static let followTilt: Double = 9
+    /// Quanto a cara se desloca, no máximo, na face (unidades da grade 100×100).
+    static let followLook: CGFloat = 5
+    /// Distância (pontos de tela) em que o ponteiro já conta como "longe": giro máximo.
+    static let followReach: CGFloat = 300
+
     // Chifres. Posição no topo do cubo (x e z vão de −1 a 1; o cubo tem lado 2).
     static let horns = [HornSpot(x: -0.5, z: 0.15), HornSpot(x: 0.5, z: -0.1)]
     /// Raio da base e altura de cada chifre, na mesma medida do cubo.
     static let hornRadius = 0.15
     static let hornHeight = 0.42
 
-    // Luz e forma.
-    /// De onde vem a luz (x: direita, y: cima, z: frente). Define qual face fica clara.
-    static let light = (x: 0.45, y: 0.7, z: 0.6)
-    /// Luz mínima de uma face na sombra (0 = preto, 1 = sem sombra).
-    static let ambient = 0.2
+    // Forma.
     /// Arredondamento das bordas do cubo (na grade 100×100).
-    static let cornerRadius: CGFloat = 7
+    static let cornerRadius: CGFloat = 3
     /// Grossura dos olhos e da boca (na grade 100×100).
     static let featureWidth: CGFloat = 6.5
+    /// Vão entre as faces (na grade 100×100). É ele que separa os tons, sem contorno.
+    static let faceGap: CGFloat = 1.6
 
     struct HornSpot { let x: Double; let z: Double }
 }
@@ -51,8 +61,10 @@ struct CubeMascot: View {
     let dark: Bool
     /// Olhos fechados (piscada).
     var blinking = false
-    /// Para onde os olhos olham, em unidades da grade (−3 a 3).
+    /// Para onde a cara olha, em unidades da grade: `look` para os lados (até ±5) e
+    /// `lookY` para cima e para baixo (até ±4; positivo é para baixo).
     var look: CGFloat = 0
+    var lookY: CGFloat = 0
     /// Giro de lado (graus): positivo mostra a lateral esquerda.
     var yaw: Double = MascotStyle.yaw
     /// Giro para frente (graus): positivo mostra o topo; negativo, a base (visto de baixo).
@@ -68,11 +80,19 @@ struct CubeMascot: View {
             // atrás: a frente do cubo esconde a base e só a ponta aparece acima da borda.
             let hornsInFront = cube.visibleFaces.contains(.top)
             ZStack {
-                if !hornsInFront { horns(cube, palette) }
-                cubeBody(cube, palette)
+                if !hornsInFront {
+                    // Atrás do cubo, só a parte acima da aresta de cima da frente aparece.
+                    // Sem isso, girando, a base do chifre escapa pela quina arredondada e
+                    // vira uma cunha grudada no canto.
+                    horns(cube, palette).mask(Grid100 { $0.addLines(cube.aboveFrontTop); $0.closeSubpath() })
+                }
+                cubeBody(cube, palette, scale: scale)
                 face(cube, palette, scale: scale)
                 if hornsInFront { horns(cube, palette) }
             }
+            // Uma camada só: uma sombra aplicada de fora contorna o cubo inteiro, em vez
+            // de fazer sombra em cada pedaço (embaixo dos olhos, dentro dos vãos).
+            .compositingGroup()
             .frame(width: geo.size.width, height: geo.size.height)
         }
         .aspectRatio(1, contentMode: .fit)
@@ -82,172 +102,160 @@ struct CubeMascot: View {
 
     // MARK: - Corpo
 
-    /// As faces viradas para quem olha, da mais funda para a mais próxima, com quinas
-    /// retas (encaixam sem fresta). Depois o conjunto é recortado pelo contorno do cubo
-    /// com as quinas arredondadas: só a borda de fora fica macia, como na logo.
-    /// A cor de cada face vem da luz: quanto mais virada para a luz, mais clara.
-    private func cubeBody(_ cube: Projection, _ p: Palette) -> some View {
+    /// Cada face visível num tom chapado (frente, lateral, topo), com um vão apagado em
+    /// volta de cada uma: é o vão que separa os tons, como na logo. Depois o conjunto é
+    /// recortado pelo contorno do cubo com as quinas arredondadas.
+    private func cubeBody(_ cube: Projection, _ p: Palette, scale: CGFloat) -> some View {
         let faces = cube.visibleFaces
         return ZStack {
             ForEach(faces, id: \.self) { face in
                 let corners = cube.corners(of: face)
-                let light = cube.light(on: face)
                 Grid100 { $0.addLines(corners); $0.closeSubpath() }
-                    .fill(LinearGradient(
-                        colors: [p.color(light: light + 0.06), p.color(light: light - 0.06)],
-                        startPoint: .top, endPoint: .bottom
-                    ))
-                    // Contorno fino da mesma cor: cobre o fio de fundo entre duas faces.
-                    .overlay(Grid100 { $0.addLines(corners); $0.closeSubpath() }
-                        .stroke(p.color(light: light), lineWidth: 0.6))
+                    .fill(p.tone(of: face))
             }
-            // Luz fina nas quinas da frente que encostam no topo e na lateral: chanfro.
-            if faces.contains(.front) {
-                Grid100 { path in
-                    path.move(to: cube.point(-0.97, -0.75, 1))
-                    path.addLine(to: cube.point(-0.97, 0.97, 1))
-                    path.addLine(to: cube.point(0.75, 0.97, 1))
-                }
-                .stroke(p.bevel, style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round))
+            // `destinationOut` apaga o que está embaixo: o vão é transparente de verdade,
+            // então funciona sobre qualquer fundo. Só nas arestas entre duas faces; na borda
+            // de fora ele estragaria o arredondamento das quinas.
+            let edges = cube.sharedEdges(among: faces)
+            Grid100 { path in
+                for (a, b) in edges { path.move(to: a); path.addLine(to: b) }
             }
+            .stroke(.black, style: StrokeStyle(lineWidth: MascotStyle.faceGap * scale, lineCap: .round))
+            .blendMode(.destinationOut)
         }
+        .compositingGroup()
         .mask(Grid100 { $0.addRoundedPolygon(cube.silhouette, radius: MascotStyle.cornerRadius) })
     }
 
     /// Cada chifre é um cone: a base é um círculo no topo do cubo (girado, vira uma elipse)
-    /// e a ponta fica acima dela. O contorno é o "fecho convexo" da base com a ponta.
-    /// Sombreado da esquerda (sombra) para a direita (luz), com um brilho na lateral
-    /// iluminada e uma sombra de contato onde encosta no cubo.
+    /// e a ponta fica acima dela. O contorno é o "fecho convexo" da base com a ponta,
+    /// pintado chapado na cor da frente.
     private func horns(_ cube: Projection, _ p: Palette) -> some View {
         ZStack {
             ForEach(MascotStyle.horns, id: \.x) { spot in
-                let (x, z, r) = (spot.x, spot.z, MascotStyle.hornRadius)
-                let base = cube.hornBase(spot)
-                let tip = cube.hornTip(spot)
-                let left = base.min { $0.x < $1.x }!, right = base.max { $0.x < $1.x }!
-                // Gradiente na grade 100×100: as posições viram frações do quadro.
-                let shading = LinearGradient(
-                    stops: [.init(color: p.horn.shadow, location: 0),
-                            .init(color: p.horn.mid, location: 0.55),
-                            .init(color: p.horn.lit, location: 1)],
-                    startPoint: UnitPoint(x: left.x / 100, y: left.y / 100),
-                    endPoint: UnitPoint(x: right.x / 100, y: right.y / 100)
-                )
-                ZStack {
-                    // Sombra de contato no topo do cubo (só se o topo aparece; visto de
-                    // baixo, a base do chifre fica escondida atrás da borda).
-                    if cube.visibleFaces.contains(.top) {
-                    Grid100 { path in
-                        path.addLines((0..<24).map { i -> CGPoint in
-                            let t = Double(i) / 24 * 2 * .pi
-                            return cube.point(x + r * 1.35 * cos(t), 1, z + r * 1.35 * sin(t))
-                        })
-                        path.closeSubpath()
-                    }
-                    .fill(Color.black.opacity(p.horn.contactShadow))
-                    }
-                    Grid100 { $0.addRoundedPolygon(Projection.convexHull(base + [tip]), radius: 0.8) }
-                        .fill(shading)
-                    // Brilho descendo pela lateral iluminada, da ponta até perto da base.
-                    Grid100 { path in
-                        let foot = CGPoint(x: (tip.x * 0.15 + right.x * 0.85) - 1.2, y: right.y - 1)
-                        path.move(to: CGPoint(x: tip.x + (foot.x - tip.x) * 0.2, y: tip.y + (foot.y - tip.y) * 0.2))
-                        path.addLine(to: foot)
-                    }
-                    .stroke(p.horn.highlight, style: StrokeStyle(lineWidth: 0.6, lineCap: .round))
-                }
+                let outline = Projection.convexHull(cube.hornBase(spot) + [cube.hornTip(spot)])
+                Grid100 { $0.addRoundedPolygon(outline, radius: 0.8) }
+                    .fill(p.horn)
             }
         }
     }
 
-
     // MARK: - Cara
 
     /// A cara é desenhada num "papel" 2D e colada na face da frente do cubo com uma
-    /// transformação afim, então acompanha qualquer giro.
+    /// transformação afim, então acompanha qualquer giro. Ela é pintada (não recortada):
+    /// o mascote flutua sobre a mesa, e um recorte mostraria o que estivesse atrás.
     @ViewBuilder
     private func face(_ cube: Projection, _ p: Palette, scale: CGFloat) -> some View {
         if cube.visibleFaces.contains(.front) {
-            let onFront = CGAffineTransform(translationX: look, y: 0).concatenating(cube.frontTransform)
-            let eyes = blinking && mood != .stopped ? Self.closedEyes : Self.eyes(for: mood)
-            let mouth = Self.mouth(for: mood)
-            let width = Geometry.featureWidth * scale * cube.frontScale
-            let features = Self.drawn { eyes(&$0); mouth(&$0) }
-            ZStack {
-                // Primeiro um traço deslocado (luz ou sombra), depois a cara por cima:
-                // parece entalhado na face do cubo, como os olhos vazados da logo.
-                Grid100 { $0.addPath(features, transform: onFront) }
-                    .stroke(p.carveRim, style: Geometry.round(width))
-                    .offset(y: p.carveRimOffset * scale)
-                Grid100 { $0.addPath(features, transform: onFront) }
-                    .stroke(p.carve, style: Geometry.round(width))
-                if mood == .thinking {
-                    let dots = Self.drawn { p in
-                        for x in [46.5, 71.5] { p.addEllipse(in: CGRect(x: x - 4, y: 51, width: 8, height: 8)) }
-                    }
-                    Grid100 { $0.addPath(dots, transform: onFront) }
-                        .fill(p.carve)
-                }
-            }
+            let eyes: FacePoints.Eyes = blinking && mood != .stopped ? .closed : FacePoints.eyes(for: mood)
+            FaceShape(points: FacePoints(eyes: eyes, mouth: FacePoints.mouth(for: mood), look: look, lookY: lookY),
+                      onFront: cube.frontTransform)
+                .stroke(p.carve, style: Geometry.round(Geometry.featureWidth * scale * cube.frontScale))
         }
     }
 
     /// Olhos e boca de uma cara, no "papel" 2D (antes de colar no cubo).
     static func faceDrawing(for mood: Mood) -> Path {
-        let eyes = Self.eyes(for: mood), mouth = Self.mouth(for: mood)
-        return drawn { eyes(&$0); mouth(&$0) }
+        FacePoints(eyes: FacePoints.eyes(for: mood), mouth: FacePoints.mouth(for: mood)).path
+    }
+}
+
+// MARK: - Cara animável
+
+/// Os pontos da cara, sempre com a mesma estrutura: cada olho são dois traços (4 pontos)
+/// e a boca é uma curva (3 pontos). Como toda cara tem os mesmos 11 pontos, trocar de
+/// humor é só mover pontos: o SwiftUI interpola um no outro (`>` vira `^`, `x` ou bolinha)
+/// em vez de trocar o desenho de uma vez.
+struct FacePoints: VectorArithmetic {
+    /// x e y de cada ponto, em sequência: olho esquerdo, olho direito, boca.
+    var values: [CGFloat]
+
+    enum Eyes { case chevron, closed, happy, cross, dot }
+    enum Mouth { case flat, small, smile }
+
+    static func eyes(for mood: CubeMascot.Mood) -> Eyes {
+        switch mood {
+        case .idle, .attention: return .chevron
+        case .thinking: return .dot
+        case .happy: return .happy
+        case .stopped: return .cross
+        }
     }
 
-    private typealias Drawing = @Sendable (inout Path) -> Void
+    static func mouth(for mood: CubeMascot.Mood) -> Mouth {
+        switch mood {
+        case .idle, .attention, .stopped: return .flat
+        case .thinking: return .small
+        case .happy: return .smile
+        }
+    }
 
-    private static func drawn(_ draw: (inout Path) -> Void) -> Path {
+    init(values: [CGFloat]) { self.values = values }
+
+    init(eyes: Eyes, mouth: Mouth, look: CGFloat = 0, lookY: CGFloat = 0) {
+        var points = Self.eye(eyes, left: true) + Self.eye(eyes, left: false)
+        switch mouth {
+        case .flat: points += [CGPoint(x: 51, y: 73), CGPoint(x: 59, y: 73), CGPoint(x: 67, y: 73)]
+        case .small: points += [CGPoint(x: 55, y: 73), CGPoint(x: 59, y: 73), CGPoint(x: 63, y: 73)]
+        case .smile: points += [CGPoint(x: 51, y: 70), CGPoint(x: 59, y: 79), CGPoint(x: 67, y: 70)]
+        }
+        values = points.flatMap { [$0.x + look, $0.y + lookY] }
+    }
+
+    /// Os dois traços de um olho. O esquerdo fica em x = 46,5 e o direito em 71,5.
+    private static func eye(_ eyes: Eyes, left: Bool) -> [CGPoint] {
+        let x: CGFloat = left ? 46.5 : 71.5
+        let p = { (dx: CGFloat, y: CGFloat) in CGPoint(x: x + dx, y: y) }
+        switch eyes {
+        case .chevron:
+            // `>` no olho esquerdo e `<` no direito: a ponta aponta para o meio.
+            let s: CGFloat = left ? 1 : -1
+            return [p(-4.5 * s, 48), p(4.5 * s, 54), p(4.5 * s, 54), p(-4.5 * s, 60)]
+        case .closed: return [p(-4.5, 55), p(0, 55), p(0, 55), p(4.5, 55)]
+        case .happy: return [p(-4.5, 57), p(0, 51), p(0, 51), p(4.5, 57)]
+        case .cross: return [p(-3.5, 50.5), p(3.5, 57.5), p(3.5, 50.5), p(-3.5, 57.5)]
+        // Um "+" curtinho: com a ponta redonda, vira uma bolinha um pouco maior que o traço.
+        case .dot: return [p(-0.8, 55), p(0.8, 55), p(0, 54.2), p(0, 55.8)]
+        }
+    }
+
+    var path: Path {
+        let p = stride(from: 0, to: values.count, by: 2).map { CGPoint(x: values[$0], y: values[$0 + 1]) }
         var path = Path()
-        draw(&path)
+        for eye in [0, 4] {
+            path.move(to: p[eye]); path.addLine(to: p[eye + 1])
+            path.move(to: p[eye + 2]); path.addLine(to: p[eye + 3])
+        }
+        path.move(to: p[8])
+        path.addQuadCurve(to: p[10], control: p[9])
         return path
     }
 
-    private static func eyes(for mood: Mood) -> Drawing {
-        switch mood {
-        case .idle, .attention:
-            return { p in
-                p.addLines([CGPoint(x: 42, y: 48), CGPoint(x: 51, y: 54), CGPoint(x: 42, y: 60)])
-                p.addLines([CGPoint(x: 76, y: 48), CGPoint(x: 67, y: 54), CGPoint(x: 76, y: 60)])
-            }
-        case .thinking:
-            // As bolinhas são preenchidas à parte; aqui não há traço.
-            return { _ in }
-        case .happy:
-            return { p in
-                p.addLines([CGPoint(x: 42, y: 57), CGPoint(x: 46.5, y: 51), CGPoint(x: 51, y: 57)])
-                p.addLines([CGPoint(x: 67, y: 57), CGPoint(x: 71.5, y: 51), CGPoint(x: 76, y: 57)])
-            }
-        case .stopped:
-            return { p in
-                for x in [46.5, 71.5] {
-                    p.move(to: CGPoint(x: x - 3.5, y: 50.5)); p.addLine(to: CGPoint(x: x + 3.5, y: 57.5))
-                    p.move(to: CGPoint(x: x + 3.5, y: 50.5)); p.addLine(to: CGPoint(x: x - 3.5, y: 57.5))
-                }
-            }
-        }
+    // O que o SwiftUI precisa para interpolar: somar, subtrair e escalar os pontos.
+    static var zero: FacePoints { FacePoints(values: Array(repeating: 0, count: 22)) }
+    static func + (a: FacePoints, b: FacePoints) -> FacePoints { FacePoints(values: zip(a.values, b.values).map(+)) }
+    static func - (a: FacePoints, b: FacePoints) -> FacePoints { FacePoints(values: zip(a.values, b.values).map(-)) }
+    mutating func scale(by rhs: Double) { values = values.map { $0 * CGFloat(rhs) } }
+    var magnitudeSquared: Double { values.reduce(0) { $0 + Double($1 * $1) } }
+}
+
+/// A cara como `Shape` animável: o `animatableData` são os pontos, então uma troca de
+/// humor dentro de uma animação vira um morph.
+private struct FaceShape: Shape {
+    var points: FacePoints
+    let onFront: CGAffineTransform
+
+    var animatableData: FacePoints {
+        get { points }
+        set { points = newValue }
     }
 
-    private static let closedEyes: Drawing = { p in
-        p.move(to: CGPoint(x: 42, y: 55)); p.addLine(to: CGPoint(x: 51, y: 55))
-        p.move(to: CGPoint(x: 67, y: 55)); p.addLine(to: CGPoint(x: 76, y: 55))
-    }
-
-    private static func mouth(for mood: Mood) -> Drawing {
-        switch mood {
-        case .idle, .attention, .stopped:
-            return { p in p.move(to: CGPoint(x: 51, y: 73)); p.addLine(to: CGPoint(x: 67, y: 73)) }
-        case .thinking:
-            return { p in p.move(to: CGPoint(x: 55, y: 73)); p.addLine(to: CGPoint(x: 63, y: 73)) }
-        case .happy:
-            return { p in
-                p.move(to: CGPoint(x: 51, y: 70))
-                p.addQuadCurve(to: CGPoint(x: 67, y: 70), control: CGPoint(x: 59, y: 79))
-            }
-        }
+    func path(in rect: CGRect) -> Path {
+        let scale = min(rect.width, rect.height) / 100
+        return points.path.applying(onFront
+            .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+            .concatenating(CGAffineTransform(translationX: rect.minX, y: rect.minY)))
     }
 }
 
@@ -301,14 +309,33 @@ private struct Projection {
 
     private let yaw: Double, pitch: Double, roll: Double
     /// Centro e tamanho do cubo na grade (sobra espaço em cima para os chifres).
-    private let center = CGPoint(x: 50, y: 57)
+    /// Onde a origem do cubo cai na grade. Calculado para o desenho inteiro (cubo + ponta
+    /// dos chifres) ficar no meio, em qualquer ângulo: ícone, mascote e menu bar centrados.
+    private var center = CGPoint.zero
     private let size: Double = 25
 
     init(yaw: Double, pitch: Double, roll: Double) {
+        self.init(yaw: yaw, pitch: pitch, roll: roll, center: Self.restCenter)
+    }
+
+    private init(yaw: Double, pitch: Double, roll: Double, center: CGPoint) {
         self.yaw = yaw * .pi / 180
         self.pitch = pitch * .pi / 180
         self.roll = roll * .pi / 180
+        self.center = center
     }
+
+    /// Onde fica o centro do cubo na grade: calculado uma vez, na pose de repouso, pela caixa
+    /// em volta do cubo e das pontas dos chifres. Usar sempre o mesmo centro faz o cubo girar
+    /// no lugar quando segue o mouse. Recalculando a cada ângulo, a caixa muda de forma e o
+    /// cubo "escorregaria" para os lados.
+    private static let restCenter: CGPoint = {
+        let rest = Projection(yaw: MascotStyle.yaw, pitch: MascotStyle.pitch, roll: MascotStyle.tilt, center: .zero)
+        var points = MascotStyle.horns.map { rest.hornTip($0) }
+        for x in [-1.0, 1.0] { for y in [-1.0, 1.0] { for z in [-1.0, 1.0] { points.append(rest.point(x, y, z)) } } }
+        let xs = points.map(\.x), ys = points.map(\.y)
+        return CGPoint(x: 50 - (xs.min()! + xs.max()!) / 2, y: 50 - (ys.min()! + ys.max()!) / 2)
+    }()
 
     /// Gira um ponto: primeiro de lado (eixo y), depois para frente (eixo x), depois inclina (eixo z).
     func rotate(_ x: Double, _ y: Double, _ z: Double) -> (x: Double, y: Double, z: Double) {
@@ -358,18 +385,6 @@ private struct Projection {
             .map(\.0)
     }
 
-    /// Quanto a face recebe da luz (0 a 1).
-    func light(on face: Face) -> Double {
-        let n = normal(of: face)
-        let r = rotate(n.0, n.1, n.2)
-        // De cima, da direita e da frente: o topo e a cara ficam claros e a lateral
-        // esquerda fica na sombra, como na logo. É esse contraste que dá profundidade.
-        let l = MascotStyle.light
-        let length = (l.x * l.x + l.y * l.y + l.z * l.z).squareRoot()
-        let dot = (r.x * l.x + r.y * l.y + r.z * l.z) / length
-        return MascotStyle.ambient + (1 - MascotStyle.ambient) * max(0, dot)
-    }
-
     /// Base de um chifre: um círculo no topo do cubo, girado (vira uma elipse na tela).
     func hornBase(_ spot: MascotStyle.HornSpot, radius: Double = MascotStyle.hornRadius) -> [CGPoint] {
         (0..<24).map { i -> CGPoint in
@@ -382,11 +397,41 @@ private struct Projection {
         point(spot.x + 0.03, 1 + MascotStyle.hornHeight, spot.z)
     }
 
+    /// Região da tela acima da reta da aresta de cima da frente (estendida até as bordas).
+    var aboveFrontTop: [CGPoint] {
+        let a = point(-1, 1, 1), b = point(1, 1, 1)
+        let slope = (b.y - a.y) / (b.x - a.x)
+        let y = { (x: CGFloat) in a.y + slope * (x - a.x) }
+        return [CGPoint(x: -100, y: y(-100)), CGPoint(x: 200, y: y(200)), CGPoint(x: 200, y: -100), CGPoint(x: -100, y: -100)]
+    }
+
+    /// Arestas que duas faces visíveis dividem (na tela): onde entra o vão entre os tons.
+    func sharedEdges(among faces: [Face]) -> [(CGPoint, CGPoint)] {
+        var edges: [(CGPoint, CGPoint)] = []
+        for (i, a) in faces.enumerated() {
+            for b in faces[(i + 1)...] {
+                let other = corners(of: b)
+                let shared = corners(of: a).filter { p in other.contains { hypot(p.x - $0.x, p.y - $0.y) < 0.01 } }
+                if shared.count == 2 { edges.append((shared[0], shared[1])) }
+            }
+        }
+        return edges
+    }
+
     /// Contorno do cubo inteiro: o "fecho convexo" dos 8 vértices projetados.
     var silhouette: [CGPoint] {
         var points: [CGPoint] = []
         for x in [-1.0, 1.0] { for y in [-1.0, 1.0] { for z in [-1.0, 1.0] { points.append(point(x, y, z)) } } }
-        return Self.convexHull(points)
+        // Vértices quase colados (a quina de trás aparecendo por um fio) deixariam um lado
+        // curtinho, e o arredondamento viraria um chanfro: fica só um deles.
+        var outline: [CGPoint] = []
+        for p in Self.convexHull(points) where outline.last.map({ hypot(p.x - $0.x, p.y - $0.y) > 3 }) ?? true {
+            outline.append(p)
+        }
+        if outline.count > 3, let first = outline.first, let last = outline.last, hypot(first.x - last.x, first.y - last.y) <= 3 {
+            outline.removeLast()
+        }
+        return outline
     }
 
     /// Leva o "papel" da cara para a face da frente girada. Sem perspectiva, um plano
@@ -439,66 +484,33 @@ private enum Geometry {
     }
 }
 
-/// Cores do cone do chifre: lado na sombra, meio, lado na luz e o brilho.
-private struct HornColors {
-    let shadow: Color
-    let mid: Color
-    let lit: Color
-    let highlight: Color
-    /// Opacidade da sombra que o chifre faz no topo do cubo.
-    let contactShadow: Double
-}
-
 private struct Palette {
-    /// Cor da face sem luz nenhuma e com luz total; cada face fica entre as duas.
-    let shade: (Double, Double, Double)
-    let lit: (Double, Double, Double)
-    let bevel: Color
-    let horn: HornColors
-    /// Cor da cara (olhos e boca) e do traço que dá o efeito de entalhe.
+    let front: Color
+    let side: Color
+    let top: Color
+    let horn: Color
+    /// Cor da cara: a do fundo onde esse cubo costuma estar, para parecer vazada.
     let carve: Color
-    let carveRim: Color
-    let carveRimOffset: CGFloat
 
-    func color(light: Double) -> Color {
-        let t = min(max(light, 0), 1)
-        return Color(red: shade.0 + (lit.0 - shade.0) * t,
-                     green: shade.1 + (lit.1 - shade.1) * t,
-                     blue: shade.2 + (lit.2 - shade.2) * t)
-    }
-
-    private static func rgb(_ hex: UInt32) -> (Double, Double, Double) {
-        (Double(hex >> 16 & 0xFF) / 255, Double(hex >> 8 & 0xFF) / 255, Double(hex & 0xFF) / 255)
+    func tone(of face: Projection.Face) -> Color {
+        switch face {
+        case .front: return front
+        case .top: return top
+        default: return side
+        }
     }
 
     private static func color(_ hex: UInt32) -> Color {
-        let c = rgb(hex)
-        return Color(red: c.0, green: c.1, blue: c.2)
+        Color(red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
 
-    /// Cubo claro com a cara escura (o da logo da esquerda).
-    static let light = Palette(
-        shade: rgb(0x9EA4AE),
-        lit: rgb(0xFFFFFF),
-        bevel: .white.opacity(0.9),
-        horn: HornColors(shadow: color(0xC4C9D0), mid: color(0xE6E9ED), lit: color(0xF7F8FA),
-                         highlight: .white.opacity(0.5), contactShadow: 0.08),
-        carve: color(0x16171A),
-        carveRim: .white.opacity(0.95),
-        carveRimOffset: 1.3
-    )
+    /// Cubo claro com a cara escura (para fundo escuro).
+    static let light = Palette(front: color(0xF2F2F4), side: color(0x9A9EA7), top: color(0xC9CCD2),
+                               horn: color(0xF2F2F4), carve: color(0x1B1D22))
 
-    /// Cubo escuro com a cara clara (o da logo da direita).
-    static let dark = Palette(
-        shade: rgb(0x111214),
-        lit: rgb(0x5C606A),
-        bevel: .white.opacity(0.3),
-        horn: HornColors(shadow: color(0x1C1E22), mid: color(0x2F3238), lit: color(0x4A4E57),
-                         highlight: .white.opacity(0.2), contactShadow: 0.25),
-        carve: color(0xEEF0F3),
-        carveRim: .black.opacity(0.7),
-        carveRimOffset: -1.3
-    )
+    /// Cubo escuro com a cara clara (para fundo claro).
+    static let dark = Palette(front: color(0x16171B), side: color(0x5D5F66), top: color(0xA7A9AE),
+                              horn: color(0x16171B), carve: color(0xF7F6F2))
 }
 
 /// Forma desenhada na grade 100×100 e escalada para o espaço que a view tiver. Como é

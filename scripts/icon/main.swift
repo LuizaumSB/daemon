@@ -14,7 +14,6 @@ import AppKit
         CubeMascot(mood: .idle, dark: !darkBackground)
             .frame(width: 900, height: 900)
             .shadow(color: .black.opacity(darkBackground ? 0.55 : 0.3), radius: 28, y: 18)
-            .offset(y: 4)
     }
     .frame(width: 1024, height: 1024)
 }

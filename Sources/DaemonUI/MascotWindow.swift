@@ -2,11 +2,12 @@ import AppKit
 import SwiftUI
 import DaemonCore
 
-/// O mini bot sempre visível: um ícone pequeno que flutua por cima de tudo.
+/// O mascote sempre visível: um cubo pequeno que flutua por cima de tudo.
 /// Clique abre/fecha o painel; arrastar muda ele de lugar.
 @MainActor
 public final class MascotWindow {
     private let panel: NSPanel
+    private let motion = MascotMotion()
 
     public init(agents: AgentsModel, onClick: @escaping () -> Void) {
         let size = NSSize(width: 60, height: 60)
@@ -24,7 +25,7 @@ public final class MascotWindow {
         panel.hasShadow = false
         panel.isReleasedWhenClosed = false
         panel.contentView = ClickOrDragView(
-            content: NSHostingView(rootView: MascotView(agents: agents)),
+            content: NSHostingView(rootView: MascotView(agents: agents, motion: motion)),
             onClick: onClick
         )
 
@@ -34,6 +35,7 @@ public final class MascotWindow {
         // A posição salva pode ser de quando o mascote tinha outro tamanho.
         panel.setContentSize(size)
         panel.setFrameAutosaveName("DaemonMascot")
+        motion.frame = { [weak panel] in panel?.frame ?? .zero }
     }
 
     public func show() { panel.orderFrontRegardless() }
@@ -43,13 +45,58 @@ public final class MascotWindow {
 }
 
 /// O que anima o mascote: piscar, olhar para os lados e o pulinho de "precisa de você".
-/// Objeto em vez de `@State` pelo mesmo motivo do `DraftState`.
+/// Objeto em vez de `@State` porque `@State` é uma macro que exige o Xcode.
 @MainActor
 private final class MascotMotion: ObservableObject {
     @Published var blinking = false
     @Published var look: CGFloat = 0
+    @Published var lookY: CGFloat = 0
+    /// Quanto o cubo está girado na direção do ponteiro (graus, somados aos do MascotStyle).
+    @Published var turn: Double = 0
+    @Published var tiltUp: Double = 0
     @Published var hop = false
     private var ticks = 0
+    /// Onde o mascote está na tela, para saber em que direção fica o ponteiro.
+    var frame: () -> NSRect = { .zero }
+
+    /// Chamado 30 vezes por segundo: pronto ou com resposta nova, o cubo vira e a cara olha
+    /// para o ponteiro. O macOS informa a posição do ponteiro sem pedir permissão
+    /// (`NSEvent.mouseLocation`). Nos outros estados, o cubo volta a ficar de frente.
+    func follow(_ mood: CubeMascot.Mood) {
+        var direction = (x: CGFloat(0), y: CGFloat(0))
+        if mood == .idle || mood == .happy {
+            let frame = frame()
+            let mouse = NSEvent.mouseLocation
+            let dx = mouse.x - frame.midX, dy = mouse.y - frame.midY
+            let distance = (dx * dx + dy * dy).squareRoot()
+            // Ponteiro em cima do mascote: fica de frente. Longe: vira até o limite.
+            let reach = distance < 20 ? 0 : min(1, distance / MascotStyle.followReach)
+            if distance > 0 { direction = (dx / distance * reach, dy / distance * reach) }
+        }
+        // Ponteiro à direita: a frente vira para a direita (aparece mais da lateral esquerda).
+        // Ponteiro em cima: a frente levanta (aparece mais da base).
+        // Simétrico: o repouso já é virado para a direita (o `yaw` da logo), então para a
+        // esquerda o caminho até o giro máximo é maior.
+        let rest = MascotStyle.yaw, maxTurn = MascotStyle.followTurn
+        let x = Double(direction.x)
+        let targetTurn = x >= 0 ? x * (maxTurn - rest) : x * (maxTurn + rest)
+        let targetTilt = Double(direction.y) * MascotStyle.followTilt
+        let targetLook = direction.x * MascotStyle.followLook
+        let targetLookY = -direction.y * MascotStyle.followLook * 0.8
+
+        // Anda um quarto do caminho por tique: o giro sai macio, sem saltos. (O SwiftUI não
+        // anima sozinho um ângulo que vira geometria, então a suavização é feita aqui.)
+        // Só publica se ainda falta andar: parado, não redesenha nada.
+        func approach(_ value: Double, _ target: Double, _ threshold: Double) -> Double? {
+            abs(target - value) > threshold ? value + (target - value) * 0.25 : nil
+        }
+        if let v = approach(turn, targetTurn, 0.05) { turn = v }
+        if let v = approach(tiltUp, targetTilt, 0.05) { tiltUp = v }
+        if mood == .idle || mood == .happy {
+            if let v = approach(Double(look), Double(targetLook), 0.05) { look = CGFloat(v) }
+            if let v = approach(Double(lookY), Double(targetLookY), 0.05) { lookY = CGFloat(v) }
+        }
+    }
 
     /// Chamado a cada 0,35 s com a cara atual.
     func tick(_ mood: CubeMascot.Mood) {
@@ -58,13 +105,19 @@ private final class MascotMotion: ObservableObject {
         case .thinking:
             // Olha para um lado, para o outro, e volta ao meio de vez em quando.
             let positions: [CGFloat] = [-3, -3, 3, 3, 0]
-            withAnimation(.easeInOut(duration: 0.3)) { look = positions[ticks % positions.count] }
+            withAnimation(.easeInOut(duration: 0.3)) {
+                look = positions[ticks % positions.count]
+                lookY = 0
+            }
         case .attention:
             withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) { hop.toggle() }
-        default:
-            if look != 0 || hop {
-                withAnimation(.easeOut(duration: 0.2)) { look = 0; hop = false }
+        case .stopped:
+            if look != 0 || lookY != 0 || hop {
+                withAnimation(.easeOut(duration: 0.2)) { look = 0; lookY = 0; hop = false }
             }
+        case .idle, .happy:
+            // Quem cuida do olhar aqui é o `follow`; só desfaz o pulinho.
+            if hop { withAnimation(.easeOut(duration: 0.2)) { hop = false } }
         }
         // Pisca a cada ~4 s (menos quando arregalado ou parado).
         if ticks % 12 == 0, mood == .idle || mood == .thinking || mood == .happy {
@@ -78,7 +131,7 @@ private final class MascotMotion: ObservableObject {
 /// está esperando o usuário (ou que tem resposta nova).
 private struct MascotView: View {
     @ObservedObject var agents: AgentsModel
-    @ObservedObject var motion = MascotMotion()
+    @ObservedObject var motion: MascotMotion
     // `@Environment` não é macro (diferente do `@State`), então compila sem o Xcode.
     @Environment(\.colorScheme) private var colorScheme
 
@@ -90,7 +143,9 @@ private struct MascotView: View {
                     Circle().fill(Color.orange.opacity(0.55)).blur(radius: 8).padding(10)
                 }
                 // No modo escuro, o cubo claro (contrasta com o fundo); no claro, o escuro.
-                CubeMascot(mood: mood, dark: colorScheme != .dark, blinking: motion.blinking, look: motion.look)
+                CubeMascot(mood: mood, dark: colorScheme != .dark, blinking: motion.blinking,
+                            look: motion.look, lookY: motion.lookY,
+                            yaw: yaw, pitch: MascotStyle.pitch - motion.tiltUp, tilt: tilt)
                     .shadow(color: .black.opacity(0.35), radius: 2.5, y: 1.5)
                     .saturation(mood == .stopped ? 0 : 1)
                     .opacity(mood == .stopped ? 0.7 : 1)
@@ -109,7 +164,18 @@ private struct MascotView: View {
         .onReceive(Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()) { _ in
             motion.tick(mood)
         }
+        .onReceive(Timer.publish(every: 1.0 / 30, on: .main, in: .common).autoconnect()) { _ in
+            motion.follow(mood)
+        }
     }
+
+    /// Giro de lado: o de repouso (virado para a direita, como na logo) mais o de seguir o mouse.
+    private var yaw: Double { MascotStyle.yaw + motion.turn }
+
+    /// A inclinação da logo (tombado para a direita) combina com o cubo virado para a direita.
+    /// Ela acompanha o giro: virando para a esquerda, diminui e passa para o outro lado, como
+    /// num espelho. Senão ele parece olhar "contra" o próprio corpo.
+    private var tilt: Double { MascotStyle.tilt * max(-1, min(1, yaw / MascotStyle.yaw)) }
 
     /// A cara do mascote resume todas as abas: parado > precisa de você > pensando >
     /// resposta nova > pronto.
