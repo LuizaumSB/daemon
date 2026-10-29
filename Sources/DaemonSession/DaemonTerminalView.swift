@@ -41,6 +41,17 @@ final class DaemonTerminalView: LocalProcessTerminalView {
         return true
     }
 
+    // MARK: - Copiar
+
+    /// ⌘C. O `copy` do SwiftTerm grava a seleção na área de transferência, mesmo vazia: sem
+    /// nada selecionado, ele apagaria o que já estava lá, inclusive o que o Claude Code copiou
+    /// por conta própria (ele copia mandando o texto pelo terminal, pelo código OSC 52).
+    /// Aqui, sem seleção, a área de transferência fica como está.
+    override func copy(_ sender: Any) {
+        guard let text = getSelection(), !text.isEmpty else { return }
+        super.copy(sender)
+    }
+
     // MARK: - Cursor
 
     /// O Claude Code esconde e mostra o cursor a cada quadro que desenha, e o SwiftTerm

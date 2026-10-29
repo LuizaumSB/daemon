@@ -6,7 +6,9 @@ import SwiftTerm
 /// - Shift+Enter pula linha em vez de enviar;
 /// - a rolagem do mouse/trackpad chega ao programa quando ele usa a tela alternativa;
 /// - o clique que só dá o foco ao terminal não chega ao programa (no Claude Code, um clique
-///   abre o bloco que está embaixo dele).
+///   abre o bloco que está embaixo dele);
+/// - arrastar com ⌥ (Option) ou Shift seleciona texto mesmo quando o programa liga o "modo
+///   mouse" (o Claude Code em tela cheia liga), como no Terminal e no Cursor.
 ///
 /// O SwiftTerm não deixa sobrescrever `keyDown`/`scrollWheel` de fora do pacote, então os
 /// eventos são interceptados antes de chegar ao terminal (monitor local de eventos do app).
@@ -18,6 +20,8 @@ final class TerminalInputFixes {
     private var pendingScroll: CGFloat = 0
     /// O "soltar" do clique de foco também não pode chegar ao programa.
     private var swallowMouseUp = false
+    /// Durante um arraste com ⌥/Shift, o repasse do mouse ao programa fica desligado.
+    private var forcingSelection = false
 
     init(terminalView: LocalProcessTerminalView) {
         self.terminalView = terminalView
@@ -47,11 +51,27 @@ final class TerminalInputFixes {
             // foco. O SwiftTerm repassaria esse clique ao programa (o `mouseDown` dele não
             // pode ser sobrescrito de fora do pacote, por isso o monitor).
             let point = view.convert(event.locationInWindow, from: nil)
-            guard view.bounds.contains(point), window.firstResponder !== view else { return false }
-            window.makeFirstResponder(view)
-            swallowMouseUp = true
-            return true
+            guard view.bounds.contains(point) else { return false }
+            if window.firstResponder !== view {
+                window.makeFirstResponder(view)
+                swallowMouseUp = true
+                return true
+            }
+            // Com ⌥ ou Shift, o SwiftTerm seleciona em vez de repassar o mouse: desliga o
+            // repasse até o botão ser solto. O evento segue para o terminal normalmente.
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if !flags.isDisjoint(with: [.option, .shift]), view.getTerminal().mouseMode != .off {
+                view.allowMouseReporting = false
+                forcingSelection = true
+            }
+            return false
         case .leftMouseUp:
+            if forcingSelection {
+                forcingSelection = false
+                // Religa depois que o terminal tratar este "soltar" (que fecha a seleção).
+                DispatchQueue.main.async { [weak view] in view?.allowMouseReporting = true }
+                return false
+            }
             guard swallowMouseUp else { return false }
             swallowMouseUp = false
             return true
