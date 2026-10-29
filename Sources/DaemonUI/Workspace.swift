@@ -161,6 +161,10 @@ public final class Workspace {
             guard let self, NSApp.isActive, let (window, pane) = self.locate(id) else { return false }
             return window.window.isVisible && pane.selectedID == id
         }
+        agents.isOnScreen = { [weak self] id in
+            guard let self, let (window, pane) = self.locate(id) else { return false }
+            return window.window.isVisible && pane.selectedID == id
+        }
         // O pedaço com o foco é o último em que o usuário clicou.
         clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             MainActor.assumeIsolated {
@@ -198,6 +202,8 @@ public final class Workspace {
     }
 
     private func present(_ window: WorkspaceWindow) {
+        // As abas que vão aparecer acordam, se estavam hibernando.
+        for pane in window.panes { pane.selectedID.flatMap(agents.tab)?.session.wake() }
         if !window.window.isVisible {
             place(window, size: window.window.frame.size, centerOn: window === main ? mascotScreenCenter() : nil)
         }
@@ -454,6 +460,7 @@ public final class Workspace {
     /// Põe no pedaço o terminal da aba selecionada.
     private func refresh(_ pane: Pane) {
         guard let id = pane.selectedID, let tab = agents.tab(id) else { return }
+        tab.session.wake()
         paneView(for: pane).show(tab.session.terminalView())
     }
 

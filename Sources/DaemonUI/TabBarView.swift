@@ -88,6 +88,8 @@ private struct TabButton: View {
         case (.running, .thinking): return .yellow
         case (.running, .needsAttention): return .orange
         case (.starting, _): return .yellow
+        // Hibernando: pronta, só que sem processo. Acorda quando a aba é aberta.
+        case (.sleeping, _): return .gray
         default: return .red
         }
     }

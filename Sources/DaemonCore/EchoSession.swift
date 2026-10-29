@@ -23,6 +23,8 @@ public final class EchoSession: SessionController {
     public func start() throws { state = .running }
     public func stop() { state = .stopped }
     public func restart() throws { stop(); try start() }
+    public func sleep() { if state == .running, activity == .idle { state = .sleeping } }
+    public func wake() { if state == .sleeping { state = .running } }
 
     public func send(_ text: String) {
         activity = .thinking

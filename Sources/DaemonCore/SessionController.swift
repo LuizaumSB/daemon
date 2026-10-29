@@ -5,6 +5,9 @@ public enum SessionState: Equatable, Sendable {
     case stopped
     case starting
     case running
+    /// Hibernando: o CLI foi encerrado para liberar memória e volta na mesma conversa com
+    /// `wake()`. Para a interface, é uma aba pronta, só que sem processo.
+    case sleeping
     /// O processo terminou. `code` é o código de saída do CLI.
     case exited(code: Int32)
 }
@@ -44,6 +47,12 @@ public protocol SessionController: AnyObject {
     func start() throws
     func stop()
     func restart() throws
+
+    /// Encerra o CLI se ele estiver parado à toa, para liberar memória. Sem efeito se ele
+    /// estiver trabalhando, esperando o usuário, ou se o CLI não souber retomar a conversa.
+    func sleep()
+    /// Volta da hibernação (na mesma conversa). Sem efeito se a sessão não estiver dormindo.
+    func wake()
 
     /// Manda uma mensagem para a sessão, como se fosse digitada e seguida de Enter.
     func send(_ text: String)

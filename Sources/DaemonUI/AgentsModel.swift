@@ -35,7 +35,12 @@ public final class AgentsModel: ObservableObject {
     public var actions: Actions?
     /// Se o usuário está vendo esta aba agora. Quem sabe disso é o painel, que preenche aqui.
     var isViewing: (String) -> Bool = { _ in false }
+    /// Se a aba aparece numa janela aberta, mesmo com outro app na frente. Também do painel.
+    var isOnScreen: (String) -> Bool = { _ in false }
     private var observers: [String: [AnyCancellable]] = [:]
+    /// Quando cada aba fez algo ou esteve à vista pela última vez.
+    private var lastUsed: [String: Date] = [:]
+    private var sleepTimer: Timer?
 
     public init(tabs: [TabModel]) {
         precondition(!tabs.isEmpty, "precisa de pelo menos uma aba")
@@ -74,6 +79,29 @@ public final class AgentsModel: ObservableObject {
 
     func tab(_ id: String) -> TabModel? { tabs.first { $0.id == id } }
 
+    // MARK: - Hibernar
+
+    /// Liga a hibernação: a aba parada há `idle` segundos e fora da vista encerra o CLI.
+    /// Ela acorda sozinha (na mesma conversa) quando volta a aparecer numa janela.
+    /// Abas pensando ou esperando o usuário nunca hibernam.
+    public func sleepIdleTabs(after idle: TimeInterval) {
+        // Uma checagem por minuto basta: hibernar um minuto antes ou depois não faz diferença.
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.sleepIdle(after: idle) }
+        }
+    }
+
+    private func sleepIdle(after idle: TimeInterval) {
+        let now = Date()
+        for tab in tabs where tab.state == .running {
+            if tab.activity != .idle || isOnScreen(tab.id) {
+                lastUsed[tab.id] = now
+            } else if now.timeIntervalSince(lastUsed[tab.id] ?? now) >= idle {
+                tab.session.sleep()
+            }
+        }
+    }
+
     func rename(_ id: String, to name: String) {
         let name = name.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, let tab = tab(id) else { return }
@@ -86,6 +114,7 @@ public final class AgentsModel: ObservableObject {
         guard id != tabs[0].id, let tab = tabs.first(where: { $0.id == id }) else { return }
         actions?.remove(tab)
         observers[id] = nil
+        lastUsed[id] = nil
         unread.remove(id)
         tabs.removeAll { $0.id == id }
         if selectedID == id { selectedID = tabs[0].id }
@@ -93,7 +122,11 @@ public final class AgentsModel: ObservableObject {
 
     private func observe(_ tab: TabModel) {
         let id = tab.id
+        lastUsed[id] = Date()
         observers[id] = [
+            // Qualquer mudança de estado (pensou, respondeu, acordou) conta como uso.
+            tab.$activity.sink { [weak self] _ in self?.lastUsed[id] = Date() },
+            tab.$state.sink { [weak self] _ in self?.lastUsed[id] = Date() },
             // O mascote observa só este modelo; qualquer mudança numa aba redesenha ele.
             tab.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() },
             // Pensando → pronto numa aba fora da vista: marca como "resposta nova".

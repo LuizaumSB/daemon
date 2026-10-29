@@ -55,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 AgentStore.rename(tab.agent, in: self.agents.tabs.map(\.agent))
             }
         )
+        // Aba parada há 15 min e fora da vista hiberna (libera uns 250 MB cada).
+        agents.sleepIdleTabs(after: 15 * 60)
         mascot.show()
         panel.anchorFrame = { [weak self] in
             guard let mascot = self?.mascot, mascot.isVisible else { return nil }

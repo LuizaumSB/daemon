@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import DaemonCore
 
@@ -8,6 +9,8 @@ import DaemonCore
 public final class MascotWindow {
     private let panel: NSPanel
     private let motion = MascotMotion()
+    /// Monta o conteúdo do mascote. Escondido, ele é desmontado: sem view, nada redesenha.
+    private let makeContent: () -> NSView
 
     public init(agents: AgentsModel, onClick: @escaping () -> Void) {
         let size = NSSize(width: 60, height: 60)
@@ -24,10 +27,12 @@ public final class MascotWindow {
         // A sombra é desenhada pelo próprio cubo; a da janela ficaria duplicada.
         panel.hasShadow = false
         panel.isReleasedWhenClosed = false
-        panel.contentView = ClickOrDragView(
-            content: NSHostingView(rootView: MascotView(agents: agents, motion: motion)),
-            onClick: onClick
-        )
+        makeContent = { [motion] in
+            ClickOrDragView(
+                content: NSHostingView(rootView: MascotView(agents: agents, motion: motion)),
+                onClick: onClick
+            )
+        }
 
         if !panel.setFrameUsingName("DaemonMascot"), let screen = NSScreen.main?.visibleFrame {
             panel.setFrameOrigin(NSPoint(x: screen.maxX - size.width - 24, y: screen.minY + 24))
@@ -38,8 +43,19 @@ public final class MascotWindow {
         motion.frame = { [weak panel] in panel?.frame ?? .zero }
     }
 
-    public func show() { panel.orderFrontRegardless() }
-    public func hide() { panel.orderOut(nil) }
+    public func show() {
+        if panel.contentView?.subviews.isEmpty ?? true { panel.contentView = makeContent() }
+        motion.start()
+        panel.orderFrontRegardless()
+    }
+
+    /// Esconder não só tira da tela: para os relógios da animação e desmonta a view, que
+    /// senão continuaria acordando 30 vezes por segundo e redesenhando a cada mudança nas abas.
+    public func hide() {
+        panel.orderOut(nil)
+        motion.stop()
+        panel.contentView = NSView()
+    }
     public var isVisible: Bool { panel.isVisible }
     public var frame: NSRect { panel.frame }
 }
@@ -56,6 +72,28 @@ private final class MascotMotion: ObservableObject {
     @Published var tiltUp: Double = 0
     @Published var hop = false
     private var ticks = 0
+    /// Os relógios ficam aqui, não no `body`: lá cada redesenho fazia um relógio novo (e, com
+    /// o mascote animando, o de 0,35 s quase nunca batia). A view só escuta os sinais.
+    let tickSignal = PassthroughSubject<Void, Never>()
+    let followSignal = PassthroughSubject<Void, Never>()
+    private var timers: [Timer] = []
+
+    /// Liga os relógios (mascote à vista).
+    func start() {
+        guard timers.isEmpty else { return }
+        timers = [(0.35, tickSignal), (1.0 / 30, followSignal)].map { interval, signal in
+            let timer = Timer(timeInterval: interval, repeats: true) { _ in signal.send() }
+            // `.common`: continua batendo enquanto o usuário arrasta o mascote.
+            RunLoop.main.add(timer, forMode: .common)
+            return timer
+        }
+    }
+
+    /// Desliga os relógios (mascote escondido).
+    func stop() {
+        timers.forEach { $0.invalidate() }
+        timers = []
+    }
     /// Onde o mascote está na tela, para saber em que direção fica o ponteiro.
     var frame: () -> NSRect = { .zero }
 
@@ -161,10 +199,10 @@ private struct MascotView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: mood)
-        .onReceive(Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(motion.tickSignal) { _ in
             motion.tick(mood)
         }
-        .onReceive(Timer.publish(every: 1.0 / 30, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(motion.followSignal) { _ in
             motion.follow(mood)
         }
     }
@@ -180,7 +218,8 @@ private struct MascotView: View {
     /// A cara do mascote resume todas as abas: parado > precisa de você > pensando >
     /// resposta nova > pronto.
     private var mood: CubeMascot.Mood {
-        guard agents.tabs[0].state == .running else { return .stopped }
+        // Hibernando conta como pronto: acorda sozinho quando a aba é aberta.
+        guard [.running, .sleeping].contains(agents.tabs[0].state) else { return .stopped }
         if agents.waiting != nil { return .attention }
         if agents.tabs.contains(where: { $0.activity == .thinking }) { return .thinking }
         if !agents.unread.isEmpty { return .happy }

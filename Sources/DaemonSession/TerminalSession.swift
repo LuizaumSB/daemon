@@ -51,7 +51,11 @@ public final class TerminalSession: NSObject, SessionController {
     }
 
     public func start() throws {
-        guard state == .stopped || isExited else { return }
+        guard state == .stopped || state == .sleeping || isExited else { return }
+        if state == .sleeping {
+            // Limpa a tela antiga: o Claude redesenha a conversa ao retomar.
+            terminal.getTerminal().resetToInitialState()
+        }
         state = .starting
         startedAt = Date()
 
@@ -117,11 +121,25 @@ public final class TerminalSession: NSObject, SessionController {
     }
 
     public func stop() {
-        guard state == .running || state == .starting else { return }
-        hooks.stopWatching()
-        terminal.terminate()
+        guard state == .running || state == .starting || state == .sleeping else { return }
+        endProcess()
         state = .stopped
         activity = .idle
+    }
+
+    /// Hiberna: encerra o CLI e libera a memória dele (uns 250 MB no Claude). A conversa
+    /// continua salva na transcrição, e `wake()` reabre a mesma com `--resume`.
+    /// Só o Claude: os outros CLIs não têm hooks (não dá para saber se estão trabalhando)
+    /// nem retomada automática da última conversa.
+    public func sleep() {
+        guard isClaude, state == .running, activity == .idle else { return }
+        endProcess()
+        state = .sleeping
+    }
+
+    public func wake() {
+        guard state == .sleeping else { return }
+        try? start()
     }
 
     public func restart() throws {
@@ -147,6 +165,34 @@ public final class TerminalSession: NSObject, SessionController {
     public func terminalView() -> NSView { terminal }
 
     // MARK: - Privado
+
+    /// Encerra o shell e tudo o que roda dentro dele (o CLI e os servidores MCP dele).
+    /// O `terminate()` do SwiftTerm só manda SIGTERM ao shell, e o zsh interativo ignora
+    /// SIGTERM: o Claude de uma aba fechada continuava vivo até o app fechar.
+    private func endProcess() {
+        hooks.stopWatching()
+        let shell = terminal.process.shellPid
+        // Lista os descendentes antes de o shell morrer: depois eles viram filhos do launchd
+        // e não dá mais para achar quem era de quem.
+        let children = shell > 0 ? Self.descendants(of: shell) : []
+        for pid in children { kill(pid, SIGTERM) }
+        // SIGHUP é o "terminal fechou": o zsh sai (e avisa os jobs dele).
+        if shell > 0 { kill(shell, SIGHUP) }
+        terminal.terminate()
+        // Quem não saiu por bem em 3 s sai à força.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            for pid in children + [shell] where pid > 0 && kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+        }
+    }
+
+    /// Filhos, netos etc. de um processo (do mais próximo para o mais distante).
+    private static func descendants(of pid: pid_t) -> [pid_t] {
+        var buffer = [pid_t](repeating: 0, count: 256)
+        // Recebe o tamanho do buffer em bytes, mas devolve quantos PIDs achou.
+        let count = proc_listchildpids(pid, &buffer, Int32(buffer.count * MemoryLayout<pid_t>.size))
+        let children = Array(buffer.prefix(max(0, Int(count)))).filter { $0 > 0 }
+        return children + children.flatMap(descendants)
+    }
 
     private var isExited: Bool {
         if case .exited = state { return true }
@@ -226,7 +272,8 @@ extension TerminalSession: LocalProcessTerminalViewDelegate {
             }
             // Ao trocar de sessão, o aviso de "terminou" do processo antigo chega depois
             // que o novo já subiu; esse aviso atrasado não vale para o novo.
-            guard self.state != .stopped, !self.terminal.process.running else { return }
+            // Parada de propósito (fechar a aba ou hibernar) também não vira "terminou".
+            guard self.state != .stopped, self.state != .sleeping, !self.terminal.process.running else { return }
             self.state = .exited(code: exitCode ?? -1)
             self.activity = .idle
         }
