@@ -8,7 +8,8 @@ import SwiftTerm
 /// - o clique que só dá o foco ao terminal não chega ao programa (no Claude Code, um clique
 ///   abre o bloco que está embaixo dele);
 /// - arrastar com ⌥ (Option) ou Shift seleciona texto mesmo quando o programa liga o "modo
-///   mouse" (o Claude Code em tela cheia liga), como no Terminal e no Cursor.
+///   mouse" (o Claude Code em tela cheia liga), como no Terminal e no Cursor;
+/// - só passar o mouse por cima não vira clique no programa (bug do SwiftTerm, ver abaixo).
 ///
 /// O SwiftTerm não deixa sobrescrever `keyDown`/`scrollWheel` de fora do pacote, então os
 /// eventos são interceptados antes de chegar ao terminal (monitor local de eventos do app).
@@ -25,7 +26,7 @@ final class TerminalInputFixes {
 
     init(terminalView: LocalProcessTerminalView) {
         self.terminalView = terminalView
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .scrollWheel, .leftMouseDown, .leftMouseUp]) { [weak self] event in
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .scrollWheel, .leftMouseDown, .leftMouseUp, .mouseMoved]) { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self else { return event }
                 // `nil` = evento tratado aqui, não segue para o terminal.
@@ -75,6 +76,16 @@ final class TerminalInputFixes {
             guard swallowMouseUp else { return false }
             swallowMouseUp = false
             return true
+        case .mouseMoved:
+            // Quando o programa pede o mouse todo (o Claude Code em tela cheia pede), o
+            // SwiftTerm 1.11.2 avisa "o mouse andou sem botão" com o código errado no
+            // protocolo SGR: manda `ESC[<32;x;ym`, que quer dizer "soltou o botão esquerdo".
+            // Para o Claude Code, cada movimento do mouse virava um clique. O certo seria
+            // `ESC[<35;x;yM`, mas o protocolo em uso é privado no SwiftTerm, então não dá
+            // para mandar o código certo: o movimento sem botão não chega ao programa.
+            // Perde só o "hover"; clicar, arrastar e rolar continuam iguais.
+            let point = view.convert(event.locationInWindow, from: nil)
+            return view.bounds.contains(point) && view.getTerminal().mouseMode == .anyEvent
         default:
             return false
         }

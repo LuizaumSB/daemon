@@ -41,6 +41,35 @@ final class DaemonTerminalView: LocalProcessTerminalView {
         return true
     }
 
+    // MARK: - Margem direita
+
+    /// Bug do SwiftTerm 1.11.2: quando o terminal encolhe, a margem direita acompanha; quando
+    /// cresce, ela fica presa na largura antiga. O "rolar para baixo" (CSI T), que o Claude
+    /// Code em tela cheia usa ao rolar a conversa, só move as colunas até essa margem: o resto
+    /// da linha ficava com o texto velho, que aparecia pelos espaços do texto novo. Como o
+    /// terminal nasce menor que a janela, isso acontecia sempre que o app abria.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        fixRightMargin()
+    }
+
+    /// Também a cada texto que chega: o programa pode trocar de tela (normal ↔ alternativa), e
+    /// só a tela em uso é acessível de fora do pacote. São duas comparações, quase de graça.
+    override func dataReceived(slice: ArraySlice<UInt8>) {
+        super.dataReceived(slice: slice)
+        fixRightMargin()
+    }
+
+    /// Margem à esquerda em 0 e à direita antes da última coluna é o resto de um tamanho
+    /// antigo. (Programas que usam margens laterais de propósito, coisa rara, mudam a esquerda.)
+    private func fixRightMargin() {
+        let terminal = getTerminal()
+        let buffer = terminal.buffer
+        if buffer.marginLeft == 0, buffer.marginRight < terminal.cols - 1 {
+            buffer.marginRight = terminal.cols - 1
+        }
+    }
+
     // MARK: - Copiar
 
     /// ⌘C. O `copy` do SwiftTerm grava a seleção na área de transferência, mesmo vazia: sem
